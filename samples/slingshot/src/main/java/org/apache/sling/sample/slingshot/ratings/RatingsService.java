@@ -26,41 +26,41 @@ public interface RatingsService {
 
     /**
      * Return the path to the ratings resource for a resource.
-     * @param resource The content resource, this is usually an item.
+     * @param resource The content resource, this is usually an entry.
      * @return The path to the ratings resource or {@code null} if
      *         the passed in content resource is not part of
      *         Slingshot.
      */
-    String getRatingsResourcePath(final Resource resource);
+    String getRatingsResourcePath(Resource resource);
 
 
     /**
      * Get the overall rating for a resource.
-     * @param resource The content resource, this is usually an item.
+     * @param resource The content resource, this is usually an entry.
      * @return The rating or {@code 0} if
      *         the passed in content resource is not part of
      *         Slingshot.
      */
-    int getRating(final Resource resource);
+    double getRating(Resource resource);
 
     /**
      * Get the rating of a user for a resource.
-     * @param resource The content resource, this is usually an item.
+     * @param resource The content resource, this is usually an entry.
      * @param userId The user id
      * @return The rating or {@code 0} if
      *         the passed in content resource is not part of
      *         Slingshot.
      */
-    int getRating(final Resource resource, final String userId);
+    double getRating(Resource resource, String userId);
 
     /**
      * Set the rating of a user for a resource.
-     * @param resource The content resource, this is usually an item.
+     * @param resource The content resource, this is usually an entry.
      * @param userId The user id
      * @return The rating or {@code 0} if
      *         the passed in content resource is not part of
      *         Slingshot.
      */
-    void setRating(final Resource resource, final String userId, final int rating)
+    void setRating(Resource resource, String userId, double rating)
     throws PersistenceException;
 }

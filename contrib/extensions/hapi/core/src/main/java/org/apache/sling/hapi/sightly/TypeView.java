@@ -27,12 +27,14 @@ import org.apache.sling.hapi.HApiProperty;
 import org.apache.sling.hapi.HApiType;
 import org.apache.sling.hapi.HApiUtil;
 import org.apache.sling.scripting.sightly.pojo.Use;
+import org.osgi.annotation.versioning.ProviderType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.script.Bindings;
 import java.util.*;
 
+@ProviderType
 public class TypeView implements Use {
     private static final Logger LOG = LoggerFactory.getLogger(TypeView.class);
 
@@ -62,20 +64,34 @@ public class TypeView implements Use {
     public void activate() throws Exception {
         hapi = sling.getService(HApiUtil.class);
         me = hapi.fromPath(resourceResolver, resource.getPath());
+
+        if (null == me) {
+            return;
+        }
+
         LOG.debug("me: {}  resource: {}", me, resource.getPath());
         description = me.getDescription();
         parent = me.getParent();
     }
 
     public String getTitle() {
+        if (null == me) {
+            return "";
+        }
         return me.getFqdn();
     }
 
     public String getDescription() {
+        if (null == me) {
+            return "";
+        }
         return description;
     }
 
     public String getParentUrl() {
+        if (null == me) {
+            return "";
+        }
         if (null != parent) {
             return parent.getUrl();
         } else {
@@ -84,6 +100,9 @@ public class TypeView implements Use {
     }
 
     public String getParentFqdn() {
+        if (null == me) {
+            return "";
+        }
         if (null != parent) {
             return parent.getFqdn();
         } else {
@@ -92,16 +111,25 @@ public class TypeView implements Use {
     }
 
     public List<String> getParameters() {
+        if (null == me) {
+            return Collections.emptyList();
+        }
         return me.getParameters();
     }
 
     public List<HApiProperty> getProps() {
+        if (null == me) {
+            return Collections.emptyList();
+        }
         List<HApiProperty> props = new ArrayList<HApiProperty>(me.getAllProperties().values());
         LOG.debug("props: ", props);
         return props;
     }
 
     public boolean getHasProps() {
+        if (null == me) {
+            return false;
+        }
         return getProps().size() > 0;
     }
 }

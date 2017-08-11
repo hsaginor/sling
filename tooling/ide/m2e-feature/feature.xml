@@ -18,7 +18,7 @@
 <feature
       id="org.apache.sling.ide.m2e-feature"
       label="Sling IDE Tools - Maven Integration (Optional)"
-      version="1.0.99.qualifier"
+      version="1.1.1.qualifier"
       provider-name="The Apache Foundation">
 
    <license url="http://www.apache.org/licenses/LICENSE-2.0">
@@ -224,10 +224,6 @@
    See the License for the specific language governing permissions and
    limitations under the License.
    </license>
-
-   <requires>
-      <import feature="org.sonatype.tycho.m2e.feature"/>
-   </requires>
 
    <plugin
          id="org.apache.sling.ide.eclipse-m2e-core"

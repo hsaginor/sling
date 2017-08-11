@@ -23,18 +23,25 @@ import static com.github.tomakehurst.wiremock.client.WireMock.urlEqualTo;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
 
+import java.io.FileReader;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.net.MalformedURLException;
+import java.nio.charset.StandardCharsets;
 import java.util.Timer;
 import java.util.TimerTask;
+import java.util.UUID;
 
+import org.apache.commons.io.IOUtils;
+import org.apache.sling.testing.clients.util.TimeoutsProvider;
 import org.junit.Rule;
 import org.junit.Test;
 
 import com.github.tomakehurst.wiremock.junit.WireMockRule;
 
 public class TeleporterHttpClientTest {
-    private static final int PORT = 1234;
+    private static final int PORT = Integer.getInteger("http.port", 1234);
     private static final String baseUrl = "http://127.0.0.1:" + PORT;
     private static final String TEST_PATH = "/foo";
     
@@ -56,10 +63,10 @@ public class TeleporterHttpClientTest {
         final TeleporterHttpClient client = new TeleporterHttpClient(baseUrl, TEST_PATH);
         final String testUrl = baseUrl + TEST_PATH;
         
-        assertEquals(404, client.getHttpGetStatus(baseUrl + TEST_PATH));
+        assertEquals(404, client.getHttpGetStatus(baseUrl + TEST_PATH).getStatus());
         activateLater(TEST_PATH, 1000);
-        client.waitForStatus(testUrl, 200, 2000);
-        assertEquals(200, client.getHttpGetStatus(baseUrl + TEST_PATH));
+        client.waitForStatus(testUrl, 200, TimeoutsProvider.getInstance().getTimeout(2000));
+        assertEquals(200, client.getHttpGetStatus(baseUrl + TEST_PATH).getStatus());
     }
     
     @Test
@@ -67,7 +74,7 @@ public class TeleporterHttpClientTest {
         final TeleporterHttpClient client = new TeleporterHttpClient(baseUrl, TEST_PATH);
         final String testUrl = baseUrl + TEST_PATH;
         
-        assertEquals(404, client.getHttpGetStatus(baseUrl + TEST_PATH));
+        assertEquals(404, client.getHttpGetStatus(baseUrl + TEST_PATH).getStatus());
         activateLater(TEST_PATH, 1000);
         
         try {
@@ -75,5 +82,49 @@ public class TeleporterHttpClientTest {
             fail("Expected waitForStatus to timeout");
         } catch(IOException expected) {
         }
+    }
+    
+    @Test
+    public void repeatedGetStatus() {
+        final String path = TEST_PATH + "/" + UUID.randomUUID();
+        givenThat(get(urlEqualTo(path)).willReturn(aResponse().withStatus(200)));
+        
+        final TeleporterHttpClient client = new TeleporterHttpClient(baseUrl, path);
+        final String testUrl = baseUrl + path;
+        
+        final int N = Integer.getInteger("sling.getstatus.test.count", 1000);
+        int status = 0;
+        for(int i=0; i < N; i++) {
+            try {
+                status = client.getHttpGetStatus(testUrl).getStatus();
+            } catch(Exception e) {
+                fail("Exception at index " + i + ":" + e);
+            }
+            assertEquals("Expecting status 200 at index " + i, 200, status);
+        }
+    }
+    
+    @Test(expected=IllegalStateException.class)
+    public void testVerifyCorrectBundleStateForInactiveBundle() throws IOException {
+        final TeleporterHttpClient client = new TeleporterHttpClient(baseUrl, "invalid");
+        String bundleSymbolicName = "testBundle1";
+        // open resource
+        try (InputStream inputStream = this.getClass().getResourceAsStream("/bundle-not-active.json")) {
+            String body = IOUtils.toString(inputStream, StandardCharsets.UTF_8);
+            givenThat(get(urlEqualTo("/system/console/bundles/" + bundleSymbolicName + ".json")).willReturn(aResponse().withStatus(200).withBody(body)));
+        }
+        client.verifyCorrectBundleState(bundleSymbolicName, 1);
+    }
+    
+    @Test
+    public void testVerifyCorrectBundleStateForActiveBundle() throws IOException {
+        final TeleporterHttpClient client = new TeleporterHttpClient(baseUrl, "invalid");
+        String bundleSymbolicName = "testBundle2";
+        // open resource
+        try (InputStream inputStream = this.getClass().getResourceAsStream("/bundle-active.json")) {
+            String body = IOUtils.toString(inputStream, StandardCharsets.UTF_8);
+            givenThat(get(urlEqualTo("/system/console/bundles/" + bundleSymbolicName + ".json")).willReturn(aResponse().withStatus(200).withBody(body)));
+        }
+        client.verifyCorrectBundleState(bundleSymbolicName, 1);
     }
 }

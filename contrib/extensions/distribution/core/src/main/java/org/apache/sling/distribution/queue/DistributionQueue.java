@@ -22,7 +22,7 @@ import javax.annotation.CheckForNull;
 import javax.annotation.Nonnull;
 
 import aQute.bnd.annotation.ProviderType;
-import org.apache.sling.distribution.serialization.DistributionPackage;
+import org.apache.sling.distribution.packaging.DistributionPackage;
 
 /**
  * A queue is responsible for collecting the {@link DistributionPackage}s
@@ -54,7 +54,6 @@ public interface DistributionQueue {
      */
     DistributionQueueEntry add(@Nonnull DistributionQueueItem item);
 
-
     /**
      * get the first item (in a FIFO strategy, the next to be processed) from the queue
      *
@@ -73,11 +72,10 @@ public interface DistributionQueue {
     @Nonnull
     Iterable<DistributionQueueEntry> getItems(int skip, int limit);
 
-
     /**
      * gets an item from the queue by specifying its id
      *
-     * @param itemId the id of the item
+     * @param itemId the id of the item as returned by {@link DistributionQueueItem#getPackageId()}
      * @return the item, or {@code null} if the item with the given id
      * doesn't exist
      */
@@ -87,18 +85,23 @@ public interface DistributionQueue {
     /**
      * remove an item from the queue by specifying its id
      *
-     * @param itemId the id the item
+     * @param itemId the id the item as returned by {@link DistributionQueueItem#getPackageId()}
      * @return the removed item, or {@code null} if the item with the given id
      * doesn't exist
      */
     @CheckForNull
     DistributionQueueEntry remove(@Nonnull String itemId);
 
-
     /**
-     * returns the status of the queue
+     * get the status of the queue
      * @return the queue status
      */
     @Nonnull
     DistributionQueueStatus getStatus();
+
+    /**
+     * get the type of this queue
+     * @return the type
+     */
+    DistributionQueueType getType();
 }

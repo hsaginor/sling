@@ -24,44 +24,43 @@ import java.util.regex.Pattern;
 import javax.script.Bindings;
 import javax.servlet.ServletRequest;
 
-import org.apache.felix.scr.annotations.Component;
-import org.apache.felix.scr.annotations.Properties;
-import org.apache.felix.scr.annotations.Property;
-import org.apache.felix.scr.annotations.Reference;
-import org.apache.felix.scr.annotations.Service;
 import org.apache.sling.api.SlingHttpServletRequest;
 import org.apache.sling.api.resource.Resource;
-import org.apache.sling.api.scripting.SlingBindings;
 import org.apache.sling.api.scripting.SlingScriptHelper;
 import org.apache.sling.commons.classloader.ClassLoaderWriter;
-import org.apache.sling.scripting.sightly.impl.compiler.SightlyJavaCompilerService;
-import org.apache.sling.scripting.sightly.impl.compiler.UnitChangeMonitor;
+import org.apache.sling.scripting.sightly.impl.engine.ResourceBackedPojoChangeMonitor;
+import org.apache.sling.scripting.sightly.impl.engine.SightlyJavaCompilerService;
 import org.apache.sling.scripting.sightly.impl.utils.BindingsUtils;
 import org.apache.sling.scripting.sightly.pojo.Use;
 import org.apache.sling.scripting.sightly.render.RenderContext;
 import org.apache.sling.scripting.sightly.use.ProviderOutcome;
 import org.apache.sling.scripting.sightly.use.UseProvider;
 import org.osgi.framework.Constants;
+import org.osgi.service.component.annotations.Component;
+import org.osgi.service.component.annotations.Reference;
+import org.osgi.service.metatype.annotations.AttributeDefinition;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 @Component(
-        metatype = true,
-        label = "Apache Sling Scripting Sightly Java Use Provider",
-        description = "The Java Use Provider is responsible for instantiating Java Use-API objects."
+        service = UseProvider.class,
+        configurationPid = "org.apache.sling.scripting.sightly.impl.engine.extension.use.JavaUseProvider",
+        property = {
+                Constants.SERVICE_RANKING + ":Integer=90"
+        }
 )
-@Service(UseProvider.class)
-@Properties({
-        @Property(
-                name = Constants.SERVICE_RANKING,
-                label = "Service Ranking",
-                description = "The Service Ranking value acts as the priority with which this Use Provider is queried to return an " +
-                        "Use-object. A higher value represents a higher priority.",
-                intValue = 90,
-                propertyPrivate = false
-        )
-})
 public class JavaUseProvider implements UseProvider {
+
+    @interface Configuration {
+
+        @AttributeDefinition(
+                name = "Service Ranking",
+                description = "The Service Ranking value acts as the priority with which this Use Provider is queried to return an " +
+                        "Use-object. A higher value represents a higher priority."
+        )
+        int service_ranking() default 90;
+
+    }
 
     private static final Logger LOG = LoggerFactory.getLogger(JavaUseProvider.class);
     private static final Pattern JAVA_PATTERN = Pattern.compile("([[\\p{L}&&[^\\p{Lu}]]_$][\\p{L}\\p{N}_$]*\\.)*[\\p{Lu}_$][\\p{L}\\p{N}_$]*");
@@ -70,7 +69,7 @@ public class JavaUseProvider implements UseProvider {
     private SightlyJavaCompilerService sightlyJavaCompilerService = null;
 
     @Reference
-    private UnitChangeMonitor unitChangeMonitor = null;
+    private ResourceBackedPojoChangeMonitor resourceBackedPojoChangeMonitor = null;
 
     @Reference
     private ClassLoaderWriter classLoaderWriter = null;
@@ -83,52 +82,44 @@ public class JavaUseProvider implements UseProvider {
         }
         Bindings globalBindings = renderContext.getBindings();
         SlingScriptHelper sling = BindingsUtils.getHelper(globalBindings);
-        SlingHttpServletRequest request = (SlingHttpServletRequest) globalBindings.get(SlingBindings.REQUEST);
+        SlingHttpServletRequest request = BindingsUtils.getRequest(globalBindings);
         Map<String, Object> overrides = setRequestAttributes(request, arguments);
 
         Object result;
         try {
-            Class<?> cls = classLoaderWriter.getClassLoader().loadClass(identifier);
-            if (unitChangeMonitor.getLastModifiedDateForJavaUseObject(identifier) > 0) {
-                // the object is a POJO that was changed in the repository but not recompiled;
-                result = sightlyJavaCompilerService.getInstance(renderContext, identifier, true);
+            result = sightlyJavaCompilerService.getResourceBackedUseObject(renderContext, identifier);
+            if (result != null) {
                 if (result instanceof Use) {
                     ((Use) result).init(BindingsUtils.merge(globalBindings, arguments));
                 }
-                return ProviderOutcome.success(result);
-            }
-            // attempt OSGi service load
-            result = sling.getService(cls);
-            if (result != null) {
-                return ProviderOutcome.success(result);
-            }
-            result = request.adaptTo(cls);
-            if (result == null) {
-                Resource resource = (Resource) globalBindings.get(SlingBindings.RESOURCE);
-                result = resource.adaptTo(cls);
-            }
-            if (result != null) {
                 return ProviderOutcome.success(result);
             } else {
-                /**
-                 * the object was cached by the class loader but it's not adaptable from {@link Resource} or {@link
-                 * SlingHttpServletRequest}; attempt to load it like a regular POJO that optionally could implement {@link Use}
-                 */
-                result = cls.newInstance();
-                if (result instanceof Use) {
-                    ((Use) result).init(BindingsUtils.merge(globalBindings, arguments));
+                LOG.debug("Attempting to load class {} from the classloader cache.", identifier);
+                Class<?> cls = classLoaderWriter.getClassLoader().loadClass(identifier);
+                // attempt OSGi service load
+                result = sling.getService(cls);
+                if (result != null) {
+                    return ProviderOutcome.success(result);
                 }
-                return ProviderOutcome.notNullOrFailure(result);
+                result = request.adaptTo(cls);
+                if (result == null) {
+                    Resource resource = BindingsUtils.getResource(globalBindings);
+                    result = resource.adaptTo(cls);
+                }
+                if (result != null) {
+                    return ProviderOutcome.success(result);
+                } else {
+                    /*
+                     * the object was cached by the class loader but it's not adaptable from {@link Resource} or {@link
+                     * SlingHttpServletRequest}; attempt to load it like a regular POJO that optionally could implement {@link Use}
+                     */
+                    result = cls.newInstance();
+                    if (result instanceof Use) {
+                        ((Use) result).init(BindingsUtils.merge(globalBindings, arguments));
+                    }
+                    return ProviderOutcome.notNullOrFailure(result);
+                }
             }
-        } catch (ClassNotFoundException e) {
-            /**
-             * this object is either not exported from a bundle, or it's a POJO from the repository that wasn't loaded before
-             */
-            result = sightlyJavaCompilerService.getInstance(renderContext, identifier, true);
-            if (result instanceof Use) {
-                ((Use) result).init(BindingsUtils.merge(globalBindings, arguments));
-            }
-            return ProviderOutcome.success(result);
         } catch (Exception e) {
             // any other exception is an error
             return ProviderOutcome.failure(e);
@@ -138,7 +129,7 @@ public class JavaUseProvider implements UseProvider {
     }
 
     private Map<String, Object> setRequestAttributes(ServletRequest request, Bindings arguments) {
-        Map<String, Object> overrides = new HashMap<String, Object>();
+        Map<String, Object> overrides = new HashMap<>();
         for (Map.Entry<String, Object> entry : arguments.entrySet()) {
             String key = entry.getKey();
             Object value = entry.getValue();

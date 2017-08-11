@@ -18,6 +18,7 @@
  */
 package org.apache.sling.distribution.servlet;
 
+import javax.annotation.Nonnull;
 import javax.servlet.ServletException;
 import java.io.IOException;
 
@@ -29,21 +30,22 @@ import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.api.servlets.SlingAllMethodsServlet;
 import org.apache.sling.distribution.agent.DistributionAgent;
 import org.apache.sling.distribution.common.DistributionException;
-import org.apache.sling.distribution.serialization.DistributionPackage;
-import org.apache.sling.distribution.serialization.DistributionPackageInfo;
+import org.apache.sling.distribution.packaging.DistributionPackage;
+import org.apache.sling.distribution.packaging.DistributionPackageInfo;
 import org.apache.sling.distribution.packaging.impl.DistributionPackageUtils;
 import org.apache.sling.distribution.queue.DistributionQueue;
 import org.apache.sling.distribution.queue.DistributionQueueEntry;
 import org.apache.sling.distribution.queue.DistributionQueueItem;
 import org.apache.sling.distribution.resources.DistributionResourceTypes;
-import org.apache.sling.distribution.serialization.DistributionPackageBuilder;
-import org.apache.sling.distribution.serialization.DistributionPackageBuilderProvider;
+import org.apache.sling.distribution.packaging.DistributionPackageBuilder;
+import org.apache.sling.distribution.packaging.DistributionPackageBuilderProvider;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
  * Servlet to retrieve a {@link org.apache.sling.distribution.queue.DistributionQueue} status.
  */
+@SuppressWarnings("serial")
 @SlingServlet(resourceTypes = DistributionResourceTypes.AGENT_QUEUE_RESOURCE_TYPE, methods = {"POST"})
 public class DistributionAgentQueueServlet extends SlingAllMethodsServlet {
 
@@ -56,7 +58,6 @@ public class DistributionAgentQueueServlet extends SlingAllMethodsServlet {
     @Override
     protected void doPost(SlingHttpServletRequest request, SlingHttpServletResponse response)
             throws ServletException, IOException {
-        @SuppressWarnings("unchecked")
         String operation = request.getParameter("operation");
 
         DistributionQueue queue = request.getResource().adaptTo(DistributionQueue.class);
@@ -86,7 +87,7 @@ public class DistributionAgentQueueServlet extends SlingAllMethodsServlet {
 
             if (idParam != null && from != null) {
                 DistributionAgent agent = request.getResource().getParent().getParent().adaptTo(DistributionAgent.class);
-                DistributionQueue sourceQueue = agent.getQueue(from);
+                DistributionQueue sourceQueue = getQueueOrThrow(agent,from);
 
                 addItems(resourceResolver, queue, sourceQueue, idParam);
             }
@@ -96,7 +97,7 @@ public class DistributionAgentQueueServlet extends SlingAllMethodsServlet {
 
             if (idParam != null && from != null) {
                 DistributionAgent agent = request.getResource().getParent().getParent().adaptTo(DistributionAgent.class);
-                DistributionQueue sourceQueue = agent.getQueue(from);
+                DistributionQueue sourceQueue = getQueueOrThrow(agent,from);
 
                 addItems(resourceResolver, queue, sourceQueue, idParam);
                 deleteItems(resourceResolver, sourceQueue, idParam);
@@ -105,23 +106,10 @@ public class DistributionAgentQueueServlet extends SlingAllMethodsServlet {
     }
 
     private void addItems(ResourceResolver resourceResolver, DistributionQueue targetQueue, DistributionQueue sourceQueue, String[] ids) {
-
-
-        if (sourceQueue == null) {
-            log.warn("cannot find source queue {}", sourceQueue);
-        }
-
         for (String id: ids) {
-            DistributionQueueEntry targetEntry =  targetQueue.getItem(id);
-
-            if (targetEntry != null) {
-                log.warn("item {} already in queue {}", id, targetQueue.getName());
-                continue;
-            }
-
             DistributionQueueEntry entry = sourceQueue.getItem(id);
             if (entry != null) {
-                targetQueue.add(new DistributionQueueItem(id, entry.getItem()));
+                targetQueue.add(entry.getItem());
                 DistributionPackage distributionPackage = getPackage(resourceResolver, entry.getItem());
                 DistributionPackageUtils.acquire(distributionPackage, targetQueue.getName());
             }
@@ -143,7 +131,7 @@ public class DistributionAgentQueueServlet extends SlingAllMethodsServlet {
 
     private void deleteItem(ResourceResolver resourceResolver, DistributionQueue queue, DistributionQueueEntry entry) {
         DistributionQueueItem item = entry.getItem();
-        String id = item.getId();
+        String id = entry.getId();
         queue.remove(id);
 
         DistributionPackage distributionPackage = getPackage(resourceResolver, item);
@@ -159,12 +147,21 @@ public class DistributionAgentQueueServlet extends SlingAllMethodsServlet {
         if (packageBuilder != null) {
 
             try {
-                return packageBuilder.getPackage(resourceResolver, item.getId());
+                return packageBuilder.getPackage(resourceResolver, item.getPackageId());
             } catch (DistributionException e) {
                 log.error("cannot get package", e);
             }
         }
 
         return null;
+    }
+
+    @Nonnull
+    private static DistributionQueue getQueueOrThrow(@Nonnull DistributionAgent agent, @Nonnull String queueName) {
+        DistributionQueue queue = agent.getQueue(queueName);
+        if (queue == null) {
+            throw new IllegalArgumentException(String.format("Could not find queue %s", queueName));
+        }
+        return queue;
     }
 }

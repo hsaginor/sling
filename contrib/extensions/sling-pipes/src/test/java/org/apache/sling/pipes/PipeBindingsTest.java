@@ -16,17 +16,20 @@
  */
 package org.apache.sling.pipes;
 
-import org.apache.sling.api.resource.Resource;
-import org.junit.Before;
-import org.junit.Test;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 
 import java.util.Calendar;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
 
-import static org.junit.Assert.*;
-
 import javax.script.ScriptException;
+
+import org.apache.sling.api.resource.Resource;
+import org.junit.Before;
+import org.junit.Test;
 
 /**
  * testing binding's expressions instanciations
@@ -64,6 +67,8 @@ public class PipeBindingsTest extends AbstractPipeTest {
         expressions.put("blah ${blah}", "'blah ' + blah");
         expressions.put("${blah}${blah}", "blah + '' + blah");
         expressions.put("+[${blah}]", "'+[' + blah + ']'");
+        expressions.put("${(new Regexp('.{3}').test(path)}","(new Regexp('.{3}').test(path)");
+        expressions.put("${(new Regexp('.{3,5}').test(path)}","(new Regexp('.{3,5}').test(path)");
         for (Map.Entry<String,String> test : expressions.entrySet()){
             assertEquals(test.getKey() + " should be transformed in " + test.getValue(), test.getValue(), bindings.computeECMA5Expression(test.getKey()));
         }
@@ -96,11 +101,11 @@ public class PipeBindingsTest extends AbstractPipeTest {
         bindings.getBindings().put("test", testMap);
         String newExpression = (String)bindings.instantiateObject("${test.a} and ${test.b}");
         assertEquals("expression should be correctly instantiated", "apricots and bananas", newExpression);
-        Calendar cal = (Calendar)bindings.instantiateObject("${new Date(2012,04,12)}");
+        Calendar cal = (Calendar)bindings.instantiateObject("${new Date('Sat, 12 May 2012 13:30:00 GMT')}");
         assertNotNull("calendar should be instantiated", cal);
         assertEquals("year should be correct", 2012, cal.get(Calendar.YEAR));
         assertEquals("month should be correct", 4, cal.get(Calendar.MONTH));
-        assertEquals("date should be correct", 11, cal.get(Calendar.DAY_OF_MONTH));
+        assertEquals("date should be correct", 12, cal.get(Calendar.DAY_OF_MONTH));
     }
 
     @Test
@@ -118,5 +123,16 @@ public class PipeBindingsTest extends AbstractPipeTest {
         PipeBindings bindings = new PipeBindings(resource);
         Number expression = (Number)bindings.instantiateObject("${testSumFunction(1,2)}");
         assertEquals("computed expression have testSum script's functionavailable", 3, expression.intValue());
+    }
+
+    @Test
+    public void testNameBinding() throws Exception {
+        Pipe pipe = getPipe(PATH_PIPE + "/" + ContainerPipeTest.NN_ONEPIPE);
+        Iterator<Resource> output = pipe.getOutput();
+        output.next();
+        PipeBindings bindings = pipe.getBindings();
+        assertEquals("first name binding should be apple", bindings.instantiateExpression("${name.dummyParent}"), "apple");
+        output.next();
+        assertEquals("second name binding should be banana", bindings.instantiateExpression("${name.dummyParent}"), "banana");
     }
 }

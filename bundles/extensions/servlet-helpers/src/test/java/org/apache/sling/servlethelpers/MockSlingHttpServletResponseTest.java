@@ -33,7 +33,6 @@ import javax.servlet.http.Cookie;
 import javax.servlet.http.HttpServletResponse;
 
 import org.apache.commons.lang3.CharEncoding;
-import org.apache.sling.servlethelpers.MockSlingHttpServletResponse;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -134,6 +133,8 @@ public class MockSlingHttpServletResponseTest {
         final String TEST_CONTENT = "Der Jodelkaiser äöüß€ ᚠᛇᚻ";
         response.setCharacterEncoding(CharEncoding.UTF_8);
         response.getWriter().write(TEST_CONTENT);
+
+        assertEquals(TEST_CONTENT, new String(response.getOutput(), CharEncoding.UTF_8));
         assertEquals(TEST_CONTENT, response.getOutputAsString());
 
         response.resetBuffer();

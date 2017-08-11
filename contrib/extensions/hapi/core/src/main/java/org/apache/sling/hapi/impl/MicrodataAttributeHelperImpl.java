@@ -23,6 +23,8 @@ import org.apache.sling.hapi.HApiType;
 import org.apache.sling.hapi.MicrodataAttributeHelper;
 import org.apache.sling.hapi.HApiException;
 import org.apache.sling.api.resource.ResourceResolver;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -32,6 +34,7 @@ import java.util.Map;
  * Helper class for HTML microdata attributes
  */
 public class MicrodataAttributeHelperImpl implements MicrodataAttributeHelper {
+    private static final Logger LOG = LoggerFactory.getLogger(MicrodataAttributeHelperImpl.class);
     private final ResourceResolver resolver;
     HApiType type;
 
@@ -60,8 +63,7 @@ public class MicrodataAttributeHelperImpl implements MicrodataAttributeHelper {
     public Map<String, String> itemtypeMap() {
         Map<String, String> attrMap = new AttrMap(2);
         attrMap.put("itemtype", type.getUrl());
-        attrMap.put("itemscope", String.valueOf(!type.getAllProperties().isEmpty()));
-        
+        attrMap.put("itemscope", "itemscope");
         return attrMap;
     }
 
@@ -134,6 +136,7 @@ public class MicrodataAttributeHelperImpl implements MicrodataAttributeHelper {
         public Map<String, String> get(Object key) {
             Map<String, String> val = super.get(key);
             if (null == val) {
+                LOG.debug("type = {}", type);
                 throw new HApiException("Property " + key + " does not exist for type " + type.getPath());
             }
             return val;

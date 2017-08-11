@@ -20,28 +20,30 @@
 [feature name=oak]
 
 [variables]
-    oak.version=1.3.16
+    oak.version=1.6.1
 
 # The segment node store is used via a configuration
 [artifacts startLevel=10]
-    org.apache.felix/org.apache.felix.jaas/0.0.4
+    org.apache.felix/org.apache.felix.jaas/1.0.2
 
 [artifacts startLevel=15]
     org.apache.jackrabbit/oak-core/${oak.version}
     org.apache.jackrabbit/oak-commons/${oak.version}
     org.apache.jackrabbit/oak-lucene/${oak.version}
     org.apache.jackrabbit/oak-blob/${oak.version}
+    org.apache.jackrabbit/oak-jcr/${oak.version}
 
 [artifacts startLevel=15 runModes=oak_tar]
-    org.apache.jackrabbit/oak-segment/${oak.version}
+    org.apache.jackrabbit/oak-segment-tar/${oak.version}
 
 [artifacts startLevel=15 runModes=oak_mongo]
-    org.mongodb/mongo-java-driver/2.13.3
+    org.mongodb/mongo-java-driver/3.4.1
+    com.h2database/h2-mvstore/1.4.193
 
 # start the Oak server instance after all components have been configured
 # and started to avoid restarting that component ( see SLING-4556 )
 [artifacts startLevel=16]
-    org.apache.sling/org.apache.sling.jcr.oak.server/1.0.1-SNAPSHOT
+    org.apache.sling/org.apache.sling.jcr.oak.server/1.1.4
 
 [configurations]
   org.apache.felix.jaas.Configuration.factory-GuestLoginModule
@@ -61,7 +63,7 @@
   org.apache.felix.jaas.ConfigurationSpi
     jaas.defaultRealmName="jackrabbit.oak"
     jaas.configProviderName="FelixJaasProvider"
-  
+
   org.apache.jackrabbit.oak.security.authentication.AuthenticationConfigurationImpl
     org.apache.jackrabbit.oak.authentication.configSpiName="FelixJaasProvider"
 
@@ -69,20 +71,19 @@
     groupsPath="/home/groups"
     usersPath="/home/users"
     defaultDepth="1"
-    importBehavior="besteffort"  
+    importBehavior="besteffort"
+
+  org.apache.jackrabbit.oak.security.user.RandomAuthorizableNodeName
+    length=I"21"
 
   org.apache.jackrabbit.oak.spi.security.user.action.DefaultAuthorizableActionProvider
     enabledActions=["org.apache.jackrabbit.oak.spi.security.user.action.AccessControlAction"]
     userPrivilegeNames=["jcr:all"]
     groupPrivilegeNames=["jcr:read"]
 
-  org.apache.jackrabbit.oak.plugins.index.lucene.LuceneIndexProviderService
-    localIndexDir="sling/repository/index"
-
 [configurations runModes=oak_tar]
-  org.apache.jackrabbit.oak.plugins.segment.SegmentNodeStoreService
+  org.apache.jackrabbit.oak.segment.SegmentNodeStoreService
     name="Default\ NodeStore"
-    repository.home="sling/repository"
 
 [configurations runModes=oak_mongo]
   org.apache.jackrabbit.oak.plugins.document.DocumentNodeStoreService

@@ -16,18 +16,22 @@
  */
 package org.apache.sling.models.impl;
 
-import static org.junit.Assert.*;
-import static org.mockito.Mockito.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.mockito.Mockito.when;
 
 import java.util.Collections;
 import java.util.Hashtable;
 
-import org.apache.commons.lang.RandomStringUtils;
+import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.sling.api.SlingHttpServletRequest;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ValueMap;
 import org.apache.sling.api.wrappers.ValueMapDecorator;
 import org.apache.sling.models.impl.injectors.ValueMapInjector;
+import org.apache.sling.models.impl.via.BeanPropertyViaProvider;
+import org.apache.sling.models.impl.via.ChildResourceViaProvider;
+import org.apache.sling.models.testmodels.classes.ChildResourceViaModel;
 import org.apache.sling.models.testmodels.classes.ViaModel;
 import org.junit.Before;
 import org.junit.Test;
@@ -44,6 +48,9 @@ public class ViaTest {
     private Resource resource;
 
     @Mock
+    private Resource childResource;
+
+    @Mock
     private SlingHttpServletRequest request;
 
     @Mock
@@ -51,7 +58,7 @@ public class ViaTest {
 
     @Mock
     private BundleContext bundleContext;
-    
+
     private ModelAdapterFactory factory;
 
     @Before
@@ -60,10 +67,14 @@ public class ViaTest {
         when(componentCtx.getProperties()).thenReturn(new Hashtable<String, Object>());
 
         when(request.getResource()).thenReturn(resource);
+        when(resource.getChild("jcr:content")).thenReturn(childResource);
         factory = new ModelAdapterFactory();
         factory.activate(componentCtx);
         factory.bindInjector(new ValueMapInjector(), new ServicePropertiesMap(1, 1));
+        factory.bindViaProvider(new BeanPropertyViaProvider(), null);
+        factory.bindViaProvider(new ChildResourceViaProvider(), null);
         factory.adapterImplementations.addClassesAsAdapterAndImplementation(ViaModel.class);
+        factory.adapterImplementations.addClassesAsAdapterAndImplementation(ChildResourceViaModel.class);
     }
 
     @Test
@@ -71,8 +82,18 @@ public class ViaTest {
         String value = RandomStringUtils.randomAlphanumeric(10);
         ValueMap map = new ValueMapDecorator(Collections.<String, Object> singletonMap("firstProperty", value));
         when(resource.adaptTo(ValueMap.class)).thenReturn(map);
-        
+
         ViaModel model = factory.getAdapter(request, ViaModel.class);
+        assertNotNull(model);
+        assertEquals(value, model.getFirstProperty());
+    }
+
+    @Test
+    public void testProjectionToChildResource() {
+        String value = RandomStringUtils.randomAlphanumeric(10);
+        ValueMap map = new ValueMapDecorator(Collections.<String, Object> singletonMap("firstProperty", value));
+        when(childResource.adaptTo(ValueMap.class)).thenReturn(map);
+        ChildResourceViaModel model = factory.getAdapter(resource, ChildResourceViaModel.class);
         assertNotNull(model);
         assertEquals(value, model.getFirstProperty());
     }

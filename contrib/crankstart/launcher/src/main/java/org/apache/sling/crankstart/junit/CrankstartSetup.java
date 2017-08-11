@@ -9,15 +9,13 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.Reader;
 import java.net.ServerSocket;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Properties;
-import java.util.UUID;
+import java.util.*;
 
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpUriRequest;
 import org.apache.http.impl.client.DefaultHttpClient;
 import org.apache.sling.crankstart.launcher.Launcher;
+import org.apache.sling.crankstart.launcher.LauncherListener;
 import org.apache.sling.crankstart.launcher.PropertiesVariableResolver;
 import org.apache.sling.provisioning.model.ModelUtility.VariableResolver;
 import org.junit.rules.ExternalResource;
@@ -42,8 +40,12 @@ public class CrankstartSetup extends ExternalResource {
     private VariableResolver variablesResolver = new PropertiesVariableResolver(replacementProps, Launcher.VARIABLE_OVERRIDE_PREFIX);
     
     private String [] classpathModelPaths;
-    
-    
+    private boolean shutdown;
+    private int bundlesStarted;
+    private int bundlesFailed;
+    private int totalBundles;
+
+
     @Override
     public String toString() {
         return getClass().getSimpleName() + ", port " + port + ", OSGi storage " + storagePath;
@@ -64,7 +66,8 @@ public class CrankstartSetup extends ExternalResource {
             }
         }
     }
-    
+
+
     public CrankstartSetup withModelResources(String ... classpathModelPaths) {
         this.classpathModelPaths = classpathModelPaths;
         return this;
@@ -103,6 +106,22 @@ public class CrankstartSetup extends ExternalResource {
     public String getBaseUrl() {
         return baseUrl;
     }
+
+    public int getBundlesFailed() {
+        return bundlesFailed;
+    }
+
+    public int getBundlesStarted() {
+        return bundlesStarted;
+    }
+
+    public int getTotalBundles() {
+        return totalBundles;
+    }
+
+    public boolean isShutdownComplete() {
+        return shutdown;
+    }
     
     private static void cleanup() {
         synchronized (toCleanup) {
@@ -129,6 +148,14 @@ public class CrankstartSetup extends ExternalResource {
         
         log.info("Starting {}", this);
         
+        // Add system properties which have the expected prefix
+        for(Object o : System.getProperties().keySet()) {
+            final String key = o.toString();
+            if(key.startsWith(Launcher.VARIABLE_OVERRIDE_PREFIX)) {
+                replacementProps.setProperty(key, System.getProperty(key));
+            }
+        }
+        
         final HttpUriRequest get = new HttpGet(baseUrl);
         replacementProps.setProperty("crankstart.model.http.port", String.valueOf(port));
         replacementProps.setProperty("crankstart.model.osgi.storage.path", storagePath);
@@ -138,8 +165,23 @@ public class CrankstartSetup extends ExternalResource {
             fail("Expecting connection to " + port + " to fail before starting HTTP service");
         } catch(IOException expected) {
         }
-        
-        final Launcher launcher = new Launcher().withVariableResolver(variablesResolver);
+        shutdown = false;
+        bundlesStarted = 0;
+        bundlesFailed = 0;
+        totalBundles = 0;
+        final Launcher launcher = new Launcher().withVariableResolver(variablesResolver).withListener(new LauncherListener() {
+            @Override
+            public void onStartup(int started, int failed, int totalBundles) {
+                CrankstartSetup.this.bundlesStarted = started;
+                CrankstartSetup.this.bundlesFailed = failed;
+                CrankstartSetup.this.totalBundles = totalBundles;
+            }
+
+            @Override
+            public void onShutdown() {
+                shutdown = true;
+            }
+        });
         for(String path : classpathModelPaths) {
             mergeModelResource(launcher, path);
         }

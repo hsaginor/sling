@@ -21,68 +21,57 @@ package org.apache.sling.scripting.sightly.impl.engine;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.Dictionary;
 import java.util.jar.Attributes;
 import java.util.jar.Manifest;
 
-import org.apache.felix.scr.annotations.Component;
-import org.apache.felix.scr.annotations.Properties;
-import org.apache.felix.scr.annotations.Property;
-import org.apache.felix.scr.annotations.Service;
-import org.apache.sling.commons.osgi.PropertiesUtil;
-import org.osgi.service.component.ComponentContext;
+import org.apache.commons.lang3.StringUtils;
+import org.osgi.service.component.annotations.Activate;
+import org.osgi.service.component.annotations.Component;
+import org.osgi.service.metatype.annotations.AttributeDefinition;
 
 /**
- * Holds various Sightly engine global configurations.
+ * Holds various HTL engine global configurations.
  */
 @Component(
-        metatype = true,
-        label = "Apache Sling Scripting Sightly Engine Configuration",
-        description = "Sightly Engine Configuration Options"
+        service = SightlyEngineConfiguration.class,
+        configurationPid = "org.apache.sling.scripting.sightly.impl.engine.SightlyEngineConfiguration"
 )
-@Service(SightlyEngineConfiguration.class)
-@Properties({
-        @Property(
-                name = SightlyEngineConfiguration.SCR_PROP_NAME_DEVMODE,
-                boolValue = SightlyEngineConfiguration.SCR_PROP_DEFAULT_DEVMODE,
-                label = "Development Mode",
-                description = "If enabled, Sightly components will be recompiled at every request instead of loading objects from memory." +
-                    " This will also write the generated Java classes' source code for Sightly templates through the ClassLoaderWriter " +
-                    "service."
-        ),
-        @Property(
-                name = SightlyEngineConfiguration.SCR_PROP_NAME_ENCODING,
-                value = SightlyEngineConfiguration.SCR_PROP_DEFAULT_ENCODING,
-                label = "Template Files Default Encoding",
-                description = "The default encoding used for reading Sightly template files (this directly affects how Sightly templates" +
-                        "are rendered)."
-        )
-})
 public class SightlyEngineConfiguration {
 
-    public static final String SCR_PROP_NAME_DEVMODE = "org.apache.sling.scripting.sightly.devmode";
-    public static final boolean SCR_PROP_DEFAULT_DEVMODE = false;
+    @interface Configuration {
 
-    public static final String SCR_PROP_NAME_ENCODING = "org.apache.sling.scripting.sightly.encoding";
-    public static final String SCR_PROP_DEFAULT_ENCODING = "UTF-8";
+        @AttributeDefinition(
+                name = "Keep Generated Java Source Code",
+                description = "If enabled, the Java source code generated during HTL template files compilation will be stored. " +
+                        "Its location is dependent on the available org.apache.sling.commons.classloader.ClassLoaderWriter."
+
+        )
+        boolean keepGenerated() default true;
+
+    }
 
     private String engineVersion = "0";
-    private boolean devMode = false;
-    private String encoding = SCR_PROP_DEFAULT_ENCODING;
+    private boolean keepGenerated;
+    private String bundleSymbolicName = "org.apache.sling.scripting.sightly";
 
     public String getEngineVersion() {
         return engineVersion;
     }
 
-    public boolean isDevMode() {
-        return devMode;
+    public String getBundleSymbolicName() {
+        return bundleSymbolicName;
     }
 
-    public String getEncoding() {
-        return encoding;
+    public String getScratchFolder() {
+        return "/" + bundleSymbolicName.replaceAll("\\.", "/");
     }
 
-    protected void activate(ComponentContext componentContext) {
+    public boolean keepGenerated() {
+        return keepGenerated;
+    }
+
+    @Activate
+    protected void activate(Configuration configuration) {
         InputStream ins = null;
         try {
             ins = getClass().getResourceAsStream("/META-INF/MANIFEST.MF");
@@ -92,6 +81,10 @@ public class SightlyEngineConfiguration {
                 String version = attrs.getValue("ScriptEngine-Version");
                 if (version != null) {
                     engineVersion = version;
+                }
+                String symbolicName = attrs.getValue("Bundle-SymbolicName");
+                if (StringUtils.isNotEmpty(symbolicName)) {
+                    bundleSymbolicName = symbolicName;
                 }
             }
         } catch (IOException ioe) {
@@ -103,8 +96,6 @@ public class SightlyEngineConfiguration {
                 }
             }
         }
-        Dictionary properties = componentContext.getProperties();
-        devMode = PropertiesUtil.toBoolean(properties.get(SCR_PROP_NAME_DEVMODE), SCR_PROP_DEFAULT_DEVMODE);
-        encoding = PropertiesUtil.toString(properties.get(SCR_PROP_NAME_ENCODING), SCR_PROP_DEFAULT_ENCODING);
+        keepGenerated = configuration.keepGenerated();
     }
 }

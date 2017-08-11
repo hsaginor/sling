@@ -23,61 +23,50 @@ import java.util.Collections;
 import java.util.ListIterator;
 import java.util.Map;
 import java.util.concurrent.ConcurrentSkipListMap;
+
 import javax.script.Bindings;
 import javax.script.SimpleBindings;
 
-import org.apache.commons.lang.StringUtils;
-import org.apache.felix.scr.annotations.Component;
-import org.apache.felix.scr.annotations.Properties;
-import org.apache.felix.scr.annotations.Property;
-import org.apache.felix.scr.annotations.Reference;
-import org.apache.felix.scr.annotations.ReferenceCardinality;
-import org.apache.felix.scr.annotations.ReferencePolicy;
-import org.apache.felix.scr.annotations.Service;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.sling.scripting.sightly.SightlyException;
+import org.apache.sling.scripting.sightly.compiler.RuntimeFunction;
 import org.apache.sling.scripting.sightly.extension.RuntimeExtension;
-import org.apache.sling.scripting.sightly.impl.plugin.UsePlugin;
-import org.apache.sling.scripting.sightly.impl.utils.RenderUtils;
+import org.apache.sling.scripting.sightly.impl.engine.extension.ExtensionUtils;
 import org.apache.sling.scripting.sightly.render.RenderContext;
+import org.apache.sling.scripting.sightly.render.RuntimeObjectModel;
 import org.apache.sling.scripting.sightly.use.ProviderOutcome;
 import org.apache.sling.scripting.sightly.use.UseProvider;
 import org.osgi.framework.BundleContext;
 import org.osgi.framework.ServiceReference;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.osgi.service.component.annotations.Component;
+import org.osgi.service.component.annotations.Reference;
+import org.osgi.service.component.annotations.ReferenceCardinality;
+import org.osgi.service.component.annotations.ReferencePolicy;
 
 /**
  * Runtime extension for the USE plugin
  */
-@Component
-@Service(RuntimeExtension.class)
-@Properties(
-        @Property(name = RuntimeExtension.NAME, value = UsePlugin.FUNCTION_NAME)
-)
-@Reference(
-        policy = ReferencePolicy.DYNAMIC,
-        referenceInterface = UseProvider.class,
-        name = "useProvider",
-        cardinality = ReferenceCardinality.OPTIONAL_MULTIPLE
+@Component(
+        service = RuntimeExtension.class,
+        property = {
+                RuntimeExtension.NAME + "=" + RuntimeFunction.USE
+        }
 )
 public class UseRuntimeExtension implements RuntimeExtension {
 
-    private static final Logger LOG = LoggerFactory.getLogger(UseRuntimeExtension.class);
-
-    private final Map<ServiceReference, UseProvider> providersMap = new ConcurrentSkipListMap<ServiceReference, UseProvider>();
+    private final Map<ServiceReference, UseProvider> providersMap = new ConcurrentSkipListMap<>();
 
     @Override
     public Object call(final RenderContext renderContext, Object... arguments) {
-        if (arguments.length != 2) {
-            throw new SightlyException("Use extension requires two arguments");
-        }
-        String identifier = RenderUtils.toString(arguments[0]);
+        ExtensionUtils.checkArgumentCount(RuntimeFunction.USE, arguments, 2);
+        RuntimeObjectModel runtimeObjectModel = renderContext.getObjectModel();
+        String identifier = runtimeObjectModel.toString(arguments[0]);
         if (StringUtils.isEmpty(identifier)) {
             throw new SightlyException("data-sly-use needs to be passed an identifier");
         }
-        Map<String, Object> useArgumentsMap = RenderUtils.toMap(arguments[1]);
+        Map<String, Object> useArgumentsMap = runtimeObjectModel.toMap(arguments[1]);
         Bindings useArguments = new SimpleBindings(Collections.unmodifiableMap(useArgumentsMap));
-        ArrayList<UseProvider> providers = new ArrayList<UseProvider>(providersMap.values());
+        ArrayList<UseProvider> providers = new ArrayList<>(providersMap.values());
         ListIterator<UseProvider> iterator = providers.listIterator(providers.size());
         while (iterator.hasPrevious()) {
             UseProvider provider = iterator.previous();
@@ -93,14 +82,16 @@ public class UseRuntimeExtension implements RuntimeExtension {
     }
 
     // OSGi ################################################################################################################################
-
-    @SuppressWarnings("UnusedDeclaration")
+    @Reference(
+            policy = ReferencePolicy.DYNAMIC,
+            service = UseProvider.class,
+            cardinality = ReferenceCardinality.MULTIPLE
+    )
     private void bindUseProvider(ServiceReference serviceReference) {
         BundleContext bundleContext = serviceReference.getBundle().getBundleContext();
         providersMap.put(serviceReference, (UseProvider) bundleContext.getService(serviceReference));
     }
 
-    @SuppressWarnings("UnusedDeclaration")
     private void unbindUseProvider(ServiceReference serviceReference) {
         providersMap.remove(serviceReference);
     }

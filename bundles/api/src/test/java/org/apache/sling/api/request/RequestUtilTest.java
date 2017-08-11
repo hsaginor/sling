@@ -20,6 +20,7 @@ package org.apache.sling.api.request;
 
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.util.Collection;
 import java.util.Locale;
 
 import javax.servlet.ServletOutputStream;
@@ -132,7 +133,6 @@ public class RequestUtilTest extends TestCase {
             public void flushBuffer() throws IOException {}
 
             @Override
-            @SuppressWarnings("deprecation")
             public void setStatus(int sc, String sm) {}
 
             @Override
@@ -157,7 +157,6 @@ public class RequestUtilTest extends TestCase {
             public void sendError(int sc) throws IOException {}
 
             @Override
-            @SuppressWarnings("deprecation")
             public String encodeUrl(String url) {
                 return null;
             }
@@ -168,7 +167,6 @@ public class RequestUtilTest extends TestCase {
             }
 
             @Override
-            @SuppressWarnings("deprecation")
             public String encodeRedirectUrl(String url) {
                 return null;
             }
@@ -194,6 +192,29 @@ public class RequestUtilTest extends TestCase {
 
             @Override
             public void addCookie(Cookie cookie) {}
+
+            @Override
+            public void setContentLengthLong(long len) {}
+
+            @Override
+            public int getStatus() {
+                return 0;
+            }
+
+            @Override
+            public String getHeader(String name) {
+                return null;
+            }
+
+            @Override
+            public Collection<String> getHeaders(String name) {
+                return null;
+            }
+
+            @Override
+            public Collection<String> getHeaderNames() {
+                return null;
+            }
         };
 
     }

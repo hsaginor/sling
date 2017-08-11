@@ -25,7 +25,7 @@ import java.util.List;
 
 import javax.annotation.Nonnull;
 
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.felix.scr.annotations.Component;
 import org.apache.felix.scr.annotations.Property;
 import org.apache.felix.scr.annotations.Service;
@@ -62,18 +62,18 @@ public class ChildResourceInjector extends AbstractInjector implements Injector,
         return null;
     }
 
-    private Object getValue(Resource adaptable, Type declaredType) {
+    private Object getValue(Resource child, Type declaredType) {
         if (declaredType instanceof Class) {
-            return adaptable;
+            return child;
         } else if (isDeclaredTypeCollection(declaredType)) {
-            return getResultList(adaptable, declaredType);
+            return getResultList(child, declaredType);
         } else {
             return null;
         }
     }
 
     private Object getResultList(Resource resource, Type declaredType) {
-       List<Resource> result = new ArrayList<Resource>();
+       List<Resource> result = new ArrayList<>();
        Class<?> type = getActualType((ParameterizedType) declaredType);
        if (type != null && resource != null) {
            Iterator<Resource> children = resource.listChildren();

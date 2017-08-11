@@ -21,6 +21,7 @@ package org.apache.sling.i18n.impl;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Enumeration;
 import java.util.HashSet;
@@ -48,7 +49,7 @@ public class JcrResourceBundle extends ResourceBundle {
 
     /** default primary type (=resource type) for message entry dictionaries */
     static final String RT_MESSAGE_ENTRY = "sling:MessageEntry";
-    
+
     static final String MIXIN_MESSAGE = "sling:Message";
 
     static final String MIXIN_LANGUAGE = "mix:language";
@@ -102,7 +103,7 @@ public class JcrResourceBundle extends ResourceBundle {
     protected void setParent(ResourceBundle parent) {
         super.setParent(parent);
     }
-    
+
     public ResourceBundle getParent() {
         return parent;
     }
@@ -164,7 +165,6 @@ public class JcrResourceBundle extends ResourceBundle {
      *
      * @throws NullPointerException if either of the parameters is {@code null}.
      */
-    @SuppressWarnings("deprecation")
     private Map<String, Object> loadFully(final ResourceResolver resolver, Set<String> roots, Set<String> languageRoots) {
 
         final String[] searchPath = resolver.getSearchPath();
@@ -211,9 +211,7 @@ public class JcrResourceBundle extends ResourceBundle {
                 loadSlingMessageDictionary(dictionaryResource, dictionary);
             }
 
-            if (!dictionary.isEmpty()) {
-                languageRoots.add(root);
-            }
+            languageRoots.add(root);
         }
 
         // linked hash map to keep order (not functionally important, but helpful for dictionary debugging)
@@ -338,8 +336,9 @@ public class JcrResourceBundle extends ResourceBundle {
                         || language.equals(localeStringLower)
                         || language.equals(localeRFC4646String)
                         || language.equals(localeRFC4646StringLower)) {
-
-                    if (baseName == null || baseName.equals(properties.get(PROP_BASENAME, ""))) {
+                    // basename might be a multivalue (see https://issues.apache.org/jira/browse/SLING-4547)
+                    String[] baseNames = properties.get(PROP_BASENAME, new String[]{});
+                    if (baseName == null || Arrays.asList(baseName).contains(baseName)) {
                         paths.add(bundle.getPath());
                     }
                 }

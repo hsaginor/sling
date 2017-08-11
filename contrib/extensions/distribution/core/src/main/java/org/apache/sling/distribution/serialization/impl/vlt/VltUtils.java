@@ -31,10 +31,12 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.NavigableMap;
 import java.util.Properties;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.zip.Deflater;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
@@ -66,13 +68,36 @@ public class VltUtils {
 
     private final static Logger log = LoggerFactory.getLogger(VltUtils.class);
 
-    public static WorkspaceFilter createFilter(DistributionRequest distributionRequest, NavigableMap<String, List<String>> filters) {
+    /**
+     * The custom <code>Path-Mapping</code> property.
+     */
+    private static final String PATH_MAPPING_PROPERTY = "Path-Mapping";
+
+    private static final String MAPPING_SEPARATOR = "=";
+
+    private static final String MAPPING_DELIMITER = ";";
+
+    public static WorkspaceFilter createFilter(DistributionRequest distributionRequest, NavigableMap<String, List<String>> nodeFilters,
+                                               NavigableMap<String, List<String>> propertyFilters) {
         DefaultWorkspaceFilter filter = new DefaultWorkspaceFilter();
 
         for (String path : distributionRequest.getPaths()) {
 
-            PathFilterSet filterSet = createFilterSet(path, filters, distributionRequest);
-            filter.add(filterSet);
+            // Set node path filters
+            List<String> patterns = new ArrayList<String>();
+            patterns.addAll(Arrays.asList(distributionRequest.getFilters(path)));
+            boolean deep = distributionRequest.isDeep(path);
+            PathFilterSet nodeFilterSet = new PathFilterSet(path);
+            if (!deep) {
+                nodeFilterSet.addInclude(new DefaultPathFilter(path));
+            }
+            initFilterSet(nodeFilterSet, nodeFilters, patterns);
+            filter.add(nodeFilterSet);
+
+            // Set property path filters
+            PathFilterSet propertyFilterSet = new PathFilterSet("/");
+            initFilterSet(propertyFilterSet, propertyFilters, new ArrayList<String>());
+            filter.addPropertyFilterSet(propertyFilterSet);
         }
 
         return filter;
@@ -96,25 +121,16 @@ public class VltUtils {
         return paths;
     }
 
-    private static PathFilterSet createFilterSet(String path, NavigableMap<String, List<String>> globalFilters, DistributionRequest distributionRequest) {
-        boolean deep = distributionRequest.isDeep(path);
-        PathFilterSet filterSet = new PathFilterSet(path);
-
-        if (!deep) {
-            filterSet.addInclude(new DefaultPathFilter(path));
-        }
-
-        List<String> patterns = new ArrayList<String>();
+    private static void initFilterSet(PathFilterSet filterSet, NavigableMap<String, List<String>> globalFilters, List<String> patterns) {
 
         // add the most specific filter rules
+        String root = filterSet.getRoot();
         for (String key : globalFilters.descendingKeySet()) {
-            if (path.startsWith(key)) {
+            if (root.startsWith(key)) {
                 patterns.addAll(globalFilters.get(key));
                 break;
             }
         }
-
-        patterns.addAll(Arrays.asList(distributionRequest.getFilters(path)));
 
         for (String pattern : patterns) {
             PathFilterSet.Entry<DefaultPathFilter> entry = extractPathPattern(pattern);
@@ -125,8 +141,6 @@ public class VltUtils {
                 filterSet.addExclude(entry.getFilter());
             }
         }
-
-        return filterSet;
     }
 
 
@@ -134,7 +148,8 @@ public class VltUtils {
                                                  String packageGroup,
                                                  String packageName,
                                                  String packageVersion,
-                                                 boolean useBinaryReferences) {
+                                                 boolean useBinaryReferences,
+                                                 Map<String, String> exportPathMapping) {
         DefaultMetaInf inf = new DefaultMetaInf();
         ExportOptions opts = new ExportOptions();
         inf.setFilter(filter);
@@ -143,7 +158,24 @@ public class VltUtils {
         props.setProperty(VaultPackage.NAME_GROUP, packageGroup);
         props.setProperty(VaultPackage.NAME_NAME, packageName);
         props.setProperty(VaultPackage.NAME_VERSION, packageVersion);
-    	props.setProperty(PackageProperties.NAME_USE_BINARY_REFERENCES, String.valueOf(useBinaryReferences));
+        props.setProperty(PackageProperties.NAME_USE_BINARY_REFERENCES, String.valueOf(useBinaryReferences));
+
+        if (exportPathMapping != null && !exportPathMapping.isEmpty()) {
+            StringBuilder builder = new StringBuilder();
+
+            for (Entry<String, String> entry : exportPathMapping.entrySet()) {
+                if (builder.length() > 0) {
+                    builder.append(MAPPING_DELIMITER);
+                }
+
+                builder.append(entry.getKey())
+                       .append(MAPPING_SEPARATOR)
+                       .append(entry.getValue());
+            }
+
+            props.setProperty(PATH_MAPPING_PROPERTY, builder.toString());
+        }
+
         inf.setProperties(props);
 
         opts.setMetaInf(inf);
@@ -151,6 +183,11 @@ public class VltUtils {
         String root = getPackageRoot(filter.getFilterSets(), packageRoots);
         opts.setRootPath(root);
         opts.setMountPath(root);
+
+        // Set the zlib compression level to "best speed"
+        // This level enables the FileVault improvement
+        // covered by JCRVLT-163.
+        opts.setCompressionLevel(Deflater.BEST_SPEED);
 
         return opts;
     }
@@ -167,7 +204,6 @@ public class VltUtils {
             for (String currentRoot : packageRoots) {
                 boolean filtersHaveCommonRoot = true;
 
-
                 for (PathFilterSet filterSet : filterSets) {
                     String filterSetRoot = filterSet.getRoot();
 
@@ -181,19 +217,16 @@ public class VltUtils {
                     break;
                 }
             }
-
         }
-
 
         if (packageRoot == null || !packageRoot.startsWith("/")) {
             packageRoot = "/";
         }
 
         return packageRoot;
-
     }
 
-    public static ImportOptions getImportOptions(AccessControlHandling aclHandling, ImportMode importMode) {
+    public static ImportOptions getImportOptions(AccessControlHandling aclHandling, ImportMode importMode, int autosaveThreshold) {
         ImportOptions opts = new ImportOptions();
         if (aclHandling != null) {
             opts.setAccessControlHandling(aclHandling);
@@ -206,6 +239,12 @@ public class VltUtils {
         } else {
             // default to update
             opts.setImportMode(ImportMode.UPDATE);
+        }
+
+        opts.setPatchKeepInRepo(false);
+
+        if (autosaveThreshold >= 0) {
+            opts.setAutoSaveThreshold(autosaveThreshold);
         }
 
         return opts;
@@ -266,7 +305,7 @@ public class VltUtils {
     }
 
     public static File getTempFolder(String tempFolderPath) {
-        File directory = null;
+        File directory;
         try {
             directory = new File(tempFolderPath);
             if (!directory.exists() || !directory.isDirectory()) {
@@ -315,7 +354,10 @@ public class VltUtils {
                     continue;
                 }
 
-                List<String> filterSet = new ArrayList<String>();
+                List<String> filterSet = result.get(path);
+                if (filterSet == null) {
+                    filterSet = new ArrayList<String>();
+                }
 
                 for (int i = 1; i < filterParts.length; i++) {
                     String filterPart = SettingsUtils.removeEmptyEntry(filterParts[i]);
@@ -371,7 +413,7 @@ public class VltUtils {
     }
 
     private static PathFilterSet.Entry<DefaultPathFilter> extractPathPattern(String pattern) {
-        PathFilterSet.Entry<DefaultPathFilter> result = null;
+        PathFilterSet.Entry<DefaultPathFilter> result;
         if (pattern.startsWith("+")) {
             result = new PathFilterSet.Entry<DefaultPathFilter>(new DefaultPathFilter(pattern.substring(1)), true);
         } else if (pattern.startsWith("-")) {

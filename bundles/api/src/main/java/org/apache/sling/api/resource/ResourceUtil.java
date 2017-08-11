@@ -41,8 +41,11 @@ public class ResourceUtil {
 
     /**
      * Resolves relative path segments '.' and '..' in the absolute path.
-     * Returns null if not possible (.. points above root) or if path is not
+     * Returns {@code null} if not possible (.. points above root) or if path is not
      * absolute.
+     *
+     * @param path The path to normalize
+     * @return The normalized path or {@code null}.
      */
     public static @CheckForNull String normalize(@Nonnull String path) {
 
@@ -185,7 +188,7 @@ public class ResourceUtil {
      * @return <code>null</code> if <code>path</code> doesn't have an ancestor at the
      *            specified <code>level</code>.
      * @throws IllegalArgumentException If the path cannot be normalized by the
-     *             {@link #normalize(String)} method or if <code>level</code> < 0.
+     *             {@link #normalize(String)} method or if <code>level</code> &lt; 0.
      * @throws NullPointerException If <code>path</code> is <code>null</code>.
      * @since 2.2 (Sling API Bundle 2.2.0)
      */
@@ -206,12 +209,13 @@ public class ResourceUtil {
     /**
      * Utility method returns the parent resource of the resource.
      *
+     * @param rsrc The resource to get the parent of.
+     * @return The parent resource or null if the rsrc is the root.
      * @throws NullPointerException If <code>rsrc</code> is <code>null</code>.
      * @throws org.apache.sling.api.SlingException If an error occurs trying to
      *             get the resource object from the path.
      * @throws IllegalStateException if the resource resolver has already been
      *             closed}.
-     * @return The parent resource or null if the rsrc is the root.
      * @deprecated since 2.1.0, use {@link Resource#getParent()} instead
      */
     @Deprecated
@@ -222,6 +226,8 @@ public class ResourceUtil {
     /**
      * Utility method returns the name of the resource.
      *
+     * @param rsrc The resource to get the name from.
+     * @return The name of the resource
      * @throws NullPointerException If <code>rsrc</code> is <code>null</code>.
      * @deprecated since 2.1.0, use {@link Resource#getName()} instead
      */
@@ -371,7 +377,7 @@ public class ResourceUtil {
      * @param res The <code>Resource</code> to adapt to the value map.
      * @return A value map.
      */
-    public static @Nonnull ValueMap getValueMap(@Nonnull final Resource res) {
+    public static @Nonnull ValueMap getValueMap(final Resource res) {
         if ( res == null ) {
             // use empty map
             return new ValueMapDecorator(new HashMap<String, Object>());
@@ -449,6 +455,10 @@ public class ResourceUtil {
      * resource type of the resource, then its super resource type and continues
      * to go up the resource super type hierarchy.
      *
+     * In case the type of the given resource or the given resource type starts with one of the resource resolver's search paths
+     * it is converted to a relative resource type by stripping off the resource resolver's search path 
+     * before doing the comparison.
+     * 
      * @param resource the resource to check
      * @param resourceType the resource type to check the resource against
      * @return <code>false</code> if <code>resource</code> is <code>null</code>.
@@ -478,6 +488,8 @@ public class ResourceUtil {
      *
      * @param iterator A resource iterator.
      * @param <T> The adapted type
+     * @param type The adapted type
+     * @return An iterator of the adapted objects
      * @since 2.0.6 (Sling API Bundle 2.0.6)
      */
     public static @Nonnull <T> Iterator<T> adaptTo(final @Nonnull Iterator<Resource> iterator,
@@ -530,6 +542,7 @@ public class ResourceUtil {
      *             get/create the resource object from the path.
      * @throws IllegalStateException if the resource resolver has already been
      *             closed}.
+     * @throws PersistenceException If a persistence error occurs.
      * @since 2.3.0  (Sling API Bundle 2.4.0)
      */
     public static @Nonnull Resource getOrCreateResource(
@@ -564,6 +577,7 @@ public class ResourceUtil {
      *             get/create the resource object from the path.
      * @throws IllegalStateException if the resource resolver has already been
      *             closed}.
+     * @throws PersistenceException If a persistence error occurs.
      * @since 2.3.0  (Sling API Bundle 2.4.0)
      */
     public static @Nonnull Resource getOrCreateResource(
@@ -608,6 +622,7 @@ public class ResourceUtil {
      *             get/create the resource object from the path.
      * @throws IllegalStateException if the resource resolver has already been
      *             closed}.
+     * @throws PersistenceException If a persistence error occurs.
      */
     private static Resource getOrCreateResourceInternal(
             final ResourceResolver resolver,

@@ -101,7 +101,6 @@ public class HtmlResponse extends AbstractPostResponse {
      * the pattern is not modified.
      *
      * @param response to send to
-     * @param setStatus whether to set the status code on the response
      * @throws IOException if an i/o exception occurs
      */
     @Override
@@ -114,7 +113,11 @@ public class HtmlResponse extends AbstractPostResponse {
         // get changelog
         changes.insert(0, "<pre>");
         changes.append("</pre>");
-        setProperty(PN_CHANGE_LOG, changes.toString());
+        if (getError() == null) {
+            setProperty(PN_CHANGE_LOG, changes.toString());
+        } else {
+            setProperty(PN_CHANGE_LOG, "");
+        }
 
         Writer out = response.getWriter();
         

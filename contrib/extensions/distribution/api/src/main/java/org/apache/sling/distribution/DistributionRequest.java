@@ -18,12 +18,9 @@
  */
 package org.apache.sling.distribution;
 
-import aQute.bnd.annotation.ProviderType;
-
-import javax.annotation.CheckForNull;
 import javax.annotation.Nonnull;
-import java.util.Arrays;
-import java.util.Set;
+
+import aQute.bnd.annotation.ProviderType;
 
 /**
  * A {@link org.apache.sling.distribution.DistributionRequest} represents the need from the caller to have
@@ -39,7 +36,7 @@ public interface DistributionRequest {
      * @return the type of the request as a {@link DistributionRequestType}
      */
     @Nonnull
-    public DistributionRequestType getRequestType();
+    DistributionRequestType getRequestType();
 
     /**
      * Get the root paths for this distribution request

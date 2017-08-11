@@ -37,12 +37,12 @@ import org.apache.sling.hc.api.Result;
 import org.apache.sling.hc.api.Result.Status;
 import org.apache.sling.hc.api.execution.HealthCheckExecutionResult;
 import org.apache.sling.hc.api.execution.HealthCheckExecutor;
+import org.apache.sling.hc.api.execution.HealthCheckSelector;
 import org.apache.sling.hc.util.FormattingResultLog;
 import org.apache.sling.hc.util.HealthCheckFilter;
 import org.apache.sling.hc.util.HealthCheckMetadata;
 import org.osgi.framework.BundleContext;
 import org.osgi.framework.Constants;
-import org.osgi.framework.InvalidSyntaxException;
 import org.osgi.framework.ServiceReference;
 import org.osgi.service.component.ComponentConstants;
 import org.osgi.service.component.ComponentContext;
@@ -87,14 +87,15 @@ public class CompositeHealthCheck implements HealthCheck {
     private HealthCheckExecutor healthCheckExecutor;
 
     private BundleContext bundleContext;
-    private ServiceReference referenceToThis;
     private HealthCheckFilter healthCheckFilter;
-    
+
+    private volatile ComponentContext componentContext;
+
     @Activate
     protected void activate(final ComponentContext ctx) {
         bundleContext = ctx.getBundleContext();
+        componentContext = ctx;
         healthCheckFilter = new HealthCheckFilter(bundleContext);
-        referenceToThis = getReferenceByPid(PropertiesUtil.toString(ctx.getProperties().get(Constants.SERVICE_PID), "-1"));
 
         filterTags = PropertiesUtil.toStringArray(ctx.getProperties().get(PROP_FILTER_TAGS), new String[] {});
         log.debug("Activated, will select HealthCheck having tags {}", Arrays.asList(filterTags));
@@ -104,20 +105,21 @@ public class CompositeHealthCheck implements HealthCheck {
     protected void deactivate() {
         bundleContext = null;
         healthCheckFilter = null;
-        referenceToThis = null;
+        componentContext = null;
     }
 
     @Override
     public Result execute() {
-
-        Result result = checkForRecursion(referenceToThis, new HashSet<String>());
-        if(result != null) {
+        final ComponentContext localCtx = this.componentContext;
+        final ServiceReference referenceToThis = localCtx == null ? null : localCtx.getServiceReference();
+        Result result = referenceToThis == null ? null : checkForRecursion(referenceToThis, new HashSet<String>());
+        if (result != null) {
             // return recursion error
             return result;
         }
 
         FormattingResultLog resultLog = new FormattingResultLog();
-        List<HealthCheckExecutionResult> executionResults = healthCheckExecutor.execute(filterTags);
+        List<HealthCheckExecutionResult> executionResults = healthCheckExecutor.execute(HealthCheckSelector.tags(filterTags));
         resultLog.debug("Executing {} HealthChecks selected by tags {}", executionResults.size(), Arrays.asList(filterTags));
         result = new CompositeResult(resultLog, executionResults);
 
@@ -135,8 +137,8 @@ public class CompositeHealthCheck implements HealthCheck {
 
         String[] tagsForIncludedChecksArr = PropertiesUtil.toStringArray(hcReference.getProperty(PROP_FILTER_TAGS), new String[0]);
         Set<String> tagsForIncludedChecks = new HashSet<String>(Arrays.asList(tagsForIncludedChecksArr));
-        
-        
+
+
         log.debug("HC {} has banned tags {}", thisCheckMetadata.getName(), bannedTagsForThisCompositeCheck);
         log.debug("tagsForIncludedChecks {}", tagsForIncludedChecks);
 
@@ -144,17 +146,17 @@ public class CompositeHealthCheck implements HealthCheck {
         Set<String> intersection = new HashSet<String>();
         intersection.addAll(bannedTagsForThisCompositeCheck);
         intersection.retainAll(tagsForIncludedChecks);
-        
+
         if (!intersection.isEmpty()) {
             return new Result(Status.HEALTH_CHECK_ERROR,
                     "INVALID CONFIGURATION: Cycle detected in composite health check hierarchy. Health check '" + thisCheckMetadata.getName()
-                            + "' (" + hcReference.getProperty(Constants.SERVICE_PID) + ") must not have tag(s) " + intersection
+                            + "' (" + hcReference.getProperty(Constants.SERVICE_ID) + ") must not have tag(s) " + intersection
                             + " as a composite check in the hierarchy is itself already tagged alike (tags assigned to composite checks: "
                             + bannedTagsForThisCompositeCheck + ")");
         }
-        
+
         // check each sub composite check
-        ServiceReference[] hcRefsOfCompositeCheck = healthCheckFilter.getTaggedHealthCheckServiceReferences(tagsForIncludedChecksArr);
+        ServiceReference[] hcRefsOfCompositeCheck = healthCheckFilter.getHealthCheckServiceReferences(HealthCheckSelector.tags(tagsForIncludedChecksArr));
         for (ServiceReference hcRefOfCompositeCheck : hcRefsOfCompositeCheck) {
             if (CompositeHealthCheck.class.getName().equals(hcRefOfCompositeCheck.getProperty(ComponentConstants.COMPONENT_NAME))) {
                 log.debug("Checking sub composite HC {}, {}", hcRefOfCompositeCheck, hcRefOfCompositeCheck.getProperty(ComponentConstants.COMPONENT_NAME));
@@ -172,29 +174,6 @@ public class CompositeHealthCheck implements HealthCheck {
 
     }
 
-    private ServiceReference getReferenceByPid(String servicePid) {
-
-        if (servicePid == null) {
-            return null;
-        }
-
-        String filterString = "(" + Constants.SERVICE_PID + "=" + servicePid + ")";
-        ServiceReference[] refs = null;
-        try {
-            refs = bundleContext.getServiceReferences(HealthCheck.class.getName(), filterString);
-        } catch (InvalidSyntaxException e) {
-            log.error("Invalid filter " + filterString, e);
-        }
-        if (refs == null || refs.length == 0) {
-            return null;
-        } else if (refs.length == 1) {
-            return refs[0];
-        } else {
-            throw new IllegalStateException("OSGi Framework returned more than one service reference for unique service pid =" + servicePid);
-        }
-
-    }
-
     void setHealthCheckFilter(HealthCheckFilter healthCheckFilter) {
         this.healthCheckFilter = healthCheckFilter;
     }
@@ -207,8 +186,7 @@ public class CompositeHealthCheck implements HealthCheck {
         this.healthCheckExecutor = healthCheckExecutor;
     }
 
-    void setReferenceToThis(ServiceReference referenceToThis) {
-        this.referenceToThis = referenceToThis;
+    void setComponentContext(ComponentContext ctx) {
+        this.componentContext = ctx;
     }
-
 }

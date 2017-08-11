@@ -19,7 +19,7 @@ package org.apache.sling.commons.scheduler;
 import java.io.Serializable;
 import java.util.Map;
 
-import aQute.bnd.annotation.ProviderType;
+import org.osgi.annotation.versioning.ProviderType;
 
 /**
  * Scheduler options provide an extensible way of defining how to schedule a job.
@@ -33,23 +33,26 @@ public interface ScheduleOptions {
     /**
      * Add optional configuration for the job.
      * @param config An optional configuration object - this configuration is only passed to the job the job implements {@link Job}.
+     * @return The schedule options.
      */
-    ScheduleOptions config(final  Map<String, Serializable> config);
+    ScheduleOptions config(Map<String, Serializable> config);
 
     /**
      * Sets the name of the job.
      * A job only needs a name if it is scheduled and should be cancelled later on. The name can then be used to cancel the job.
      * If a second job with the same name is started, the second one replaces the first one.
      * @param name The job name
+     * @return The schedule options.
      */
-    ScheduleOptions name(final String name);
+    ScheduleOptions name(String name);
 
     /**
      * Flag indicating whether the job can be run concurrently.
      * This defaults to false.
      * @param flag Whether this job can run even if previous scheduled runs are still running.
+     * @return The schedule options.
      */
-    ScheduleOptions canRunConcurrently(final boolean flag);
+    ScheduleOptions canRunConcurrently(boolean flag);
 
     /**
      * Flag indicating whether the job should only be run on the leader. This defaults to false.
@@ -62,8 +65,9 @@ public interface ScheduleOptions {
      * If {@link #onSingleInstanceOnly(boolean)} or {@link #onInstancesOnly(String[])} has been called before,
      * that option is reset and overwritten by the value of this method.
      * @param flag Whether this job should only be run on the leader
+     * @return The schedule options.
      */
-    ScheduleOptions onLeaderOnly(final boolean flag);
+    ScheduleOptions onLeaderOnly(boolean flag);
 
     /**
      * Flag indicating whether the job should only be run on a single instance in a cluster
@@ -76,8 +80,9 @@ public interface ScheduleOptions {
      * If {@link #onLeaderOnly(boolean)} or {@link #onInstancesOnly(String[])} has been called before,
      * that option is reset and overwritten by the value of this method.
      * @param flag Whether this job should only be run on a single instance.
+     * @return The schedule options.
      */
-    ScheduleOptions onSingleInstanceOnly(final boolean flag);
+    ScheduleOptions onSingleInstanceOnly(boolean flag);
 
     /**
      * List of Sling IDs this job should be run on.
@@ -86,7 +91,25 @@ public interface ScheduleOptions {
      *
      * If {@link #onLeaderOnly(boolean)} or {@link #onSingleInstanceOnly(boolean)} has been called before,
      * that option is reset and overwritten by the value of this method.
+     *
      * @param slingIds Array of Sling IDs this job should run on
+     * @return The schedule options.
      */
-    ScheduleOptions onInstancesOnly(final String[] slingIds);
+    ScheduleOptions onInstancesOnly(String[] slingIds);
+
+    /**
+     * Define the thread pool to be used.
+     * Scheduled jobs can run using different thread pools. By default, the default
+     * thread pool of the scheduler is used.
+     * If a thread pool name is specified, it is up to the scheduler to put the job
+     * in the defined thread pool or any other thread pool.
+     * This option must be used with special care as it might create new thread pools.
+     * It should only be used if there is a good reason to not use the default thread
+     * pool.
+     *
+     * @param name The thread pool name
+     * @return The schedule options.
+     * @since 2.5.0
+     */
+    ScheduleOptions threadPoolName(String name);
 }

@@ -163,5 +163,24 @@ public class MockNodeTest {
         assertNotNull(ntFile.getProperty(JcrConstants.JCR_CREATED).getDate());
         assertNotNull(ntFile.getProperty("jcr:createdBy").getString());
     }
+
+    @Test
+    public void testGetMixinNodeTypes() throws Exception {
+        assertEquals(0, this.node1.getMixinNodeTypes().length);
+    }
+
+    @Test
+    public void testIsModified() throws RepositoryException {
+        Node foo = this.session.getRootNode().addNode("foo");
+        // according to "if this Item has been saved but has subsequently been modified through
+        // the current session.
+        assertFalse(foo.isModified());
+        this.session.save();
+        assertFalse(foo.isModified());
+        foo.setProperty("bar", 1);
+        assertTrue(foo.isModified());
+        this.session.save();
+        assertFalse(foo.isModified());
+    }
     
 }

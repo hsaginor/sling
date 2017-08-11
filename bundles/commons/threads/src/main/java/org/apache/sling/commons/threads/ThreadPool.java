@@ -16,9 +16,10 @@
  */
 package org.apache.sling.commons.threads;
 
-import aQute.bnd.annotation.ProviderType;
+import org.osgi.annotation.versioning.ProviderType;
 
 import java.util.concurrent.Callable;
+import java.util.concurrent.Executor;
 import java.util.concurrent.Future;
 
 /**
@@ -26,17 +27,12 @@ import java.util.concurrent.Future;
  * getting threads from a managed pool.
  */
 @ProviderType
-public interface ThreadPool {
-
-    /**
-     * Execute a runnable
-     * @param runnable The {@link Runnable} to execute
-     */
-    void execute(Runnable runnable);
+public interface ThreadPool extends Executor {
 
     /**
      * Submits a callable for execution
      * @param callable The {@link Callable} to submit
+     * @param <T> The generic type for the callable.
      * @return A {@link Future} representing pending completion of the {@link Callable}
      * @since 3.2
      */
@@ -52,11 +48,13 @@ public interface ThreadPool {
 
     /**
      * The name of the thread pool.
+     * @return The thread pool name.
      */
     String getName();
 
     /**
      * The thread pool configuration.
+     * @return The thread pool configuration
      */
     ThreadPoolConfig getConfiguration();
 }

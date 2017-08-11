@@ -16,13 +16,14 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.sling.distribution.common;
 
 /**
  * Generic checked exception for distribution
  */
+@SuppressWarnings("serial")
 public class DistributionException extends Exception {
+
     public DistributionException(Throwable e) {
         super(e);
     }

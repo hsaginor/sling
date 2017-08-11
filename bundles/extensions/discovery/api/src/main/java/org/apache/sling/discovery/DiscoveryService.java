@@ -18,7 +18,7 @@
  */
 package org.apache.sling.discovery;
 
-import aQute.bnd.annotation.ProviderType;
+import org.osgi.annotation.versioning.ProviderType;
 
 /**
  * The discovery service can be used to get the current topology view.
@@ -26,9 +26,6 @@ import aQute.bnd.annotation.ProviderType;
  * The discovery service is in charge of managing live instances that
  * have announced themselves as being part of a topology view. The exact
  * details of how this announcement occurs is implementation dependent.
- * <p>
- * Note that the discovery service fails if it detects a situation
- * where more than one instance with the same sling.id exists in a cluster.
  */
 @ProviderType
 public interface DiscoveryService {

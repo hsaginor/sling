@@ -26,8 +26,8 @@ import org.apache.felix.scr.annotations.Service;
 import org.apache.sling.distribution.component.impl.DistributionComponent;
 import org.apache.sling.distribution.component.impl.DistributionComponentKind;
 import org.apache.sling.distribution.component.impl.DistributionComponentProvider;
-import org.apache.sling.distribution.serialization.DistributionPackageBuilder;
-import org.apache.sling.distribution.serialization.DistributionPackageBuilderProvider;
+import org.apache.sling.distribution.packaging.DistributionPackageBuilder;
+import org.apache.sling.distribution.packaging.DistributionPackageBuilderProvider;
 
 @Component
 @Service(DistributionPackageBuilderProvider.class)
@@ -38,25 +38,25 @@ public class DefaultDistributionPackageBuilderProvider implements DistributionPa
     DistributionComponentProvider componentProvider;
 
     public DistributionPackageBuilder getPackageBuilder(String type) {
-        List<DistributionComponent> componentList = componentProvider.getComponents(DistributionComponentKind.PACKAGE_BUILDER);
+        List<DistributionComponent<?>> componentList = componentProvider.getComponents(DistributionComponentKind.PACKAGE_BUILDER);
 
         return filterPackageBuildersByType(componentList, type);
     }
 
-    private static DistributionPackageBuilder filterPackageBuildersByType(List<DistributionComponent> componentList, String type) {
+    private static DistributionPackageBuilder filterPackageBuildersByType(List<DistributionComponent<?>> componentList, String type) {
 
         if (type == null) {
             return null;
         }
 
-        for (DistributionComponent component : componentList) {
+        for (DistributionComponent<?> component : componentList) {
             Object service = component.getService();
 
             if (service instanceof DistributionPackageBuilder) {
                 DistributionPackageBuilder packageBuilder = (DistributionPackageBuilder) service;
 
                 if (type.equals(packageBuilder.getType())) {
-                    return new DefaultSharedDistributionPackageBuilder(packageBuilder);
+                    return packageBuilder;
                 }
             }
         }

@@ -19,7 +19,6 @@
 package org.apache.sling.distribution.queue.impl.jobhandling;
 
 import javax.annotation.CheckForNull;
-import javax.annotation.Nonnull;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
@@ -35,15 +34,24 @@ import org.slf4j.LoggerFactory;
 class JobHandlingUtils {
     private final static Logger log = LoggerFactory.getLogger(JobHandlingUtils.class);
 
+    private static final String ID_START = "dstrpck-";
 
     private static final String DISTRIBUTION_PACKAGE_PREFIX = "distribution.";
-    private static final String ID = DISTRIBUTION_PACKAGE_PREFIX + "item.id";
+    private static final String DISTRIBUTION_PACKAGE_ID = DISTRIBUTION_PACKAGE_PREFIX + "item.id";
+    private static final String DISTRIBUTION_PACKAGE_SIZE = DISTRIBUTION_PACKAGE_PREFIX + "package.size";
 
     public static DistributionQueueItem getItem(final Job job) {
 
         Map<String, Object> properties = new HashMap<String, Object>();
 
-        String id = (String) job.getProperty(ID);
+        String packageId = (String) job.getProperty(DISTRIBUTION_PACKAGE_ID);
+        Object sizeProperty = job.getProperty(DISTRIBUTION_PACKAGE_SIZE);
+        long size;
+        if (sizeProperty != null) {
+            size = Long.valueOf(sizeProperty.toString());
+        } else {
+            size = -1;
+        }
 
         try {
             Set<String> propertyNames = job.getPropertyNames();
@@ -57,7 +65,7 @@ class JobHandlingUtils {
             log.error("Cannot read job {} properties", job.getId(), t);
         }
 
-        return new DistributionQueueItem(id, properties);
+        return new DistributionQueueItem(packageId, size, properties);
     }
 
     public static Map<String, Object> createFullProperties(DistributionQueueItem queueItem) {
@@ -70,25 +78,22 @@ class JobHandlingUtils {
             }
         }
 
-        properties.put(ID, queueItem.getId());
+        properties.put(DISTRIBUTION_PACKAGE_ID, queueItem.getPackageId());
+        properties.put(DISTRIBUTION_PACKAGE_SIZE, queueItem.getSize());
 
-        return properties;
-    }
-
-    public static Map<String, Object> createIdProperties(String itemId) {
-        Map<String, Object> properties = new HashMap<String, Object>();
-        properties.put(ID, itemId);
         return properties;
     }
 
     @CheckForNull
-    public static String getQueueName(Job job) {
+    private static String getQueueName(Job job) {
 
         String topic = job.getTopic();
         if (topic == null || !topic.startsWith(JobHandlingDistributionQueue.DISTRIBUTION_QUEUE_TOPIC)) return null;
 
         String queue = topic.substring(JobHandlingDistributionQueue.DISTRIBUTION_QUEUE_TOPIC.length() + 1);
-        int idx = queue.indexOf("/");
+
+
+        int idx = queue.lastIndexOf("/");
 
         if (idx < 0) return "";
 
@@ -110,10 +115,29 @@ class JobHandlingUtils {
         DistributionQueueItemStatus itemStatus = getStatus(job);
 
         if (item != null && itemStatus != null) {
-            return new DistributionQueueEntry(item, itemStatus);
+            return new DistributionQueueEntry(escapeId(job.getId()), item, itemStatus);
         }
 
         return null;
+    }
+
+    private static String escapeId(String jobId) {
+        //return id;
+        if (jobId == null) {
+            return null;
+        }
+        return ID_START + jobId.replace("/", "--");
+    }
+
+    public static String unescapeId(String itemId) {
+        if (itemId == null) {
+            return null;
+        }
+        if (!itemId.startsWith(ID_START)) {
+            return null;
+        }
+
+        return itemId.replace(ID_START, "").replace("--", "/");
     }
 
 

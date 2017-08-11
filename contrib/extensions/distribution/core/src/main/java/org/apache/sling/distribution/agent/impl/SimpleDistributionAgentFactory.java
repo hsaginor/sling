@@ -33,9 +33,13 @@ import org.apache.felix.scr.annotations.ReferenceCardinality;
 import org.apache.felix.scr.annotations.ReferencePolicy;
 import org.apache.sling.api.resource.ResourceResolverFactory;
 import org.apache.sling.commons.osgi.PropertiesUtil;
+import org.apache.sling.distribution.agent.DistributionAgent;
 import org.apache.sling.distribution.component.impl.DistributionComponentConstants;
+import org.apache.sling.distribution.component.impl.SettingsUtils;
 import org.apache.sling.distribution.event.impl.DistributionEventFactory;
 import org.apache.sling.distribution.log.impl.DefaultDistributionLog;
+import org.apache.sling.distribution.monitor.impl.SimpleDistributionAgentMBean;
+import org.apache.sling.distribution.monitor.impl.SimpleDistributionAgentMBeanImpl;
 import org.apache.sling.distribution.packaging.DistributionPackageExporter;
 import org.apache.sling.distribution.packaging.DistributionPackageImporter;
 import org.apache.sling.distribution.queue.DistributionQueueProvider;
@@ -47,8 +51,6 @@ import org.apache.sling.event.jobs.JobManager;
 import org.apache.sling.jcr.api.SlingRepository;
 import org.apache.sling.settings.SlingSettingsService;
 import org.osgi.framework.BundleContext;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * An OSGi service factory for {@link org.apache.sling.distribution.agent.DistributionAgent}s which references already existing OSGi services.
@@ -64,9 +66,7 @@ import org.slf4j.LoggerFactory;
         policy = ReferencePolicy.DYNAMIC, cardinality = ReferenceCardinality.OPTIONAL_MULTIPLE,
         bind = "bindDistributionTrigger", unbind = "unbindDistributionTrigger")
 @Property(name="webconsole.configurationFactory.nameHint", value="Agent name: {name}")
-public class SimpleDistributionAgentFactory extends AbstractDistributionAgentFactory {
-    private final Logger log = LoggerFactory.getLogger(getClass());
-
+public class SimpleDistributionAgentFactory extends AbstractDistributionAgentFactory<SimpleDistributionAgentMBean> {
 
     @Property(label = "Name", description = "The name of the agent.")
     public static final String NAME = DistributionComponentConstants.PN_NAME;
@@ -136,6 +136,9 @@ public class SimpleDistributionAgentFactory extends AbstractDistributionAgentFac
     @Reference
     private SlingRepository slingRepository;
 
+    public SimpleDistributionAgentFactory() {
+        super(SimpleDistributionAgentMBean.class);
+    }
 
     @Activate
     protected void activate(BundleContext context, Map<String, Object> config) {
@@ -158,7 +161,7 @@ public class SimpleDistributionAgentFactory extends AbstractDistributionAgentFac
 
     @Override
     protected SimpleDistributionAgent createAgent(String agentName, BundleContext context, Map<String, Object> config, DefaultDistributionLog distributionLog) {
-        String serviceName = PropertiesUtil.toString(config.get(SERVICE_NAME), null);
+        String serviceName = SettingsUtils.removeEmptyEntry(PropertiesUtil.toString(config.get(SERVICE_NAME), null));
 
         boolean queueProcessingEnabled = PropertiesUtil.toBoolean(config.get(QUEUE_PROCESSING_ENABLED), true);
 
@@ -169,11 +172,16 @@ public class SimpleDistributionAgentFactory extends AbstractDistributionAgentFac
         Set<String> processingQueues = new HashSet<String>();
         processingQueues.addAll(exportQueueStrategy.getQueueNames());
 
-
         return new SimpleDistributionAgent(agentName, queueProcessingEnabled, processingQueues,
                 serviceName, packageImporter, packageExporter, requestAuthorizationStrategy,
                 queueProvider, exportQueueStrategy, importQueueStrategy, distributionEventFactory, resourceResolverFactory, slingRepository,
                 distributionLog, null, null, 0);
 
     }
+
+    @Override
+    protected SimpleDistributionAgentMBean createMBeanAgent(DistributionAgent agent, Map<String, Object> osgiConfiguration) {
+        return new SimpleDistributionAgentMBeanImpl(agent, osgiConfiguration);
+    }
+
 }

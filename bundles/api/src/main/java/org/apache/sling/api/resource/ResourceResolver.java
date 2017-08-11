@@ -28,11 +28,11 @@ import javax.servlet.http.HttpServletRequest;
 
 import org.apache.sling.api.adapter.Adaptable;
 
-import aQute.bnd.annotation.ProviderType;
+import org.osgi.annotation.versioning.ProviderType;
 
 /**
  * The <code>ResourceResolver</code> defines the service API which may be used
- * to resolve {@link Resource} objects. The resource resolver is available to
+ * to resolve {@link org.apache.sling.api.resource.Resource} objects. The resource resolver is available to
  * the request processing servlet through the
  * {@link org.apache.sling.api.SlingHttpServletRequest#getResourceResolver()}
  * method.
@@ -55,7 +55,7 @@ import aQute.bnd.annotation.ProviderType;
  * <code>resolve</code> methods and the <code>getResource</code> methods. The
  * difference lies in the algorithm applied to find the requested resource and
  * in the behavior in case a resource cannot be found:
- * <table>
+ * <table summary="">
  * <tr>
  * <th>Method Kind</th>
  * <th>Access Algorithm</th>
@@ -360,6 +360,7 @@ public interface ResourceResolver extends Adaptable, Closeable {
      * relative path, the search path entry and relative path may just be
      * concatenated.
      *
+     * @return The array of search paths
      * @throws IllegalStateException if this resource resolver has already been
      *             {@link #close() closed}.
      */
@@ -525,16 +526,17 @@ public interface ResourceResolver extends Adaptable, Closeable {
             throws LoginException;
 
     /**
-     * Returns <code>true</code> if this resource resolver has not been closed
-     * yet.
+     * Returns <code>true</code> if this resource resolver is still usable.
+     * This method tests different things like if it has not been closed
+     * yet or if any of the used resource providers is not usable anymore.
      * <p>
      * Unlike the other methods defined in this interface, this method will
      * never throw an exception even after the resource resolver has been
      * {@link #close() closed}.
      *
-     * @return <code>true</code> if the resource resolver has not been closed
-     *         yet. Once the resource resolver has been closed, this method
-     *         returns <code>false</code>.
+     * @return <code>true</code> if the resource resolver is still usable.
+     *      Once the resource resolver has been closed or a used resource
+     *      provider has been unregistered, this method returns <code>false</code>.
      * @since 2.1 (Sling API Bundle 2.1.0)
      */
     boolean isLive();
@@ -546,8 +548,9 @@ public interface ResourceResolver extends Adaptable, Closeable {
      * exceptions if still used - with the exception of this method, which
      * can be called several times with no ill effects.
      *
-     * A resource may also be closed implicitly in case when the {@link ResourceResolverFactory}
-     * which was used to create this resolver is no longer active.
+     * A resolver may also be closed implicitly in case when the {@link ResourceResolverFactory}
+     * which was used to create this resolver is no longer active or
+     * any of the used resource providers is no longer active.
      *
      * @since 2.1 (Sling API Bundle 2.1.0)
      * @see ResourceResolver Resource Resolver (section lifecycle)
@@ -641,7 +644,7 @@ public interface ResourceResolver extends Adaptable, Closeable {
     /**
      * Persist all pending changes.
      *
-     * @throws PersistenceException
+     * @throws PersistenceException If persisting the changes fails.
      * @throws IllegalStateException if this resource resolver has already been
      *             {@link #close() closed}.
      * @since 2.2 (Sling API Bundle 2.2.0)
@@ -650,6 +653,7 @@ public interface ResourceResolver extends Adaptable, Closeable {
 
     /**
      * Are there any pending changes?
+     * @return {@code true} if there are pending changes.
      * @throws IllegalStateException if this resource resolver has already been
      *             {@link #close() closed}.
      * @since 2.2 (Sling API Bundle 2.2.0)
@@ -694,6 +698,10 @@ public interface ResourceResolver extends Adaptable, Closeable {
     /**
      * Returns <code>true</code> if the resource type or any of the resource's
      * super type(s) equals the given resource type.
+     * 
+     * In case the type of the given resource or the given resource type starts with one of the resource resolver's search paths
+     * it is converted to a relative resource type by stripping off the resource resolver's search path 
+     * before doing the comparison.
      *
      * @param resource The resource to check
      * @param resourceType The resource type to check this resource against.

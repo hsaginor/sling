@@ -19,12 +19,16 @@
 
 package org.apache.sling.hapi;
 
+import org.osgi.annotation.versioning.ProviderType;
+
 import java.util.List;
 import java.util.Map;
 
 /**
  * A Hypermedia API type.
  */
+
+@ProviderType
 public interface HApiType {
 
     /**
@@ -41,13 +45,13 @@ public interface HApiType {
     String getDescription();
 
     /**
-     * The JCR path of the node representing this type
+     * The path of the Resource representing this type
      * @return
      */
     String getPath();
 
     /**
-     * The URL of the node representing this type
+     * The external URL of the node representing this type
      * @return
      */
     String getUrl();

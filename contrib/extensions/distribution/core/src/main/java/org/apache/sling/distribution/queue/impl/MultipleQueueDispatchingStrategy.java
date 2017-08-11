@@ -21,14 +21,12 @@ package org.apache.sling.distribution.queue.impl;
 import javax.annotation.Nonnull;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
-import java.util.UUID;
 
 import org.apache.sling.distribution.common.DistributionException;
 import org.apache.sling.distribution.queue.DistributionQueueEntry;
-import org.apache.sling.distribution.serialization.DistributionPackage;
-import org.apache.sling.distribution.serialization.impl.SharedDistributionPackage;
+import org.apache.sling.distribution.packaging.DistributionPackage;
+import org.apache.sling.distribution.packaging.impl.SharedDistributionPackage;
 import org.apache.sling.distribution.packaging.impl.DistributionPackageUtils;
 import org.apache.sling.distribution.queue.DistributionQueue;
 import org.apache.sling.distribution.queue.DistributionQueueItem;
@@ -51,7 +49,8 @@ public class MultipleQueueDispatchingStrategy implements DistributionQueueDispat
         this.queueNames = Arrays.copyOf(queueNames, queueNames.length);
     }
 
-    public Iterable<DistributionQueueItemStatus> add(@Nonnull DistributionPackage distributionPackage, @Nonnull DistributionQueueProvider queueProvider) throws DistributionException {
+    public Iterable<DistributionQueueItemStatus> add(@Nonnull DistributionPackage distributionPackage,
+                                                     @Nonnull DistributionQueueProvider queueProvider) throws DistributionException {
 
         if (!(distributionPackage instanceof SharedDistributionPackage) && queueNames.length > 1) {
             throw new DistributionException("distribution package must be a shared package to be added in multiple queues");

@@ -22,10 +22,7 @@ package org.apache.sling.xss;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import org.apache.sling.api.SlingHttpServletRequest;
-import org.apache.sling.api.resource.ResourceResolver;
-
-import aQute.bnd.annotation.ProviderType;
+import org.osgi.annotation.versioning.ProviderType;
 
 /**
  * A service providing validators and encoders for XSS protection during the composition of HTML
@@ -66,6 +63,17 @@ public interface XSSAPI {
      */
     @Nullable
     Long getValidLong(@Nullable String source,long defaultValue);
+
+    /**
+     * Validate a string which should contain an double, returning a default value if the source is
+     * {@code null}, empty, can't be parsed, or contains XSS risks.
+     *
+     * @param source      the source double
+     * @param defaultValue a default value if the source can't be used, is {@code null} or an empty string
+     * @return a sanitized double
+     */
+    @Nullable
+    Double getValidDouble(@Nullable String source, double defaultValue);
 
     /**
      * Validate a string which should contain a dimension, returning a default value if the source is
@@ -228,28 +236,5 @@ public interface XSSAPI {
      */
     @Nonnull
     String filterHTML(@Nullable String source);
-
-
-    // =============================================================================================
-    // JCR-based URL MAPPING
-    //
-
-    /**
-     * Returns an XSSAPI instance capable of mapping resource URLs.
-     * EITHER THIS OR THE RESOURCERESOLVER VERSION MUST BE USED WHEN VALIDATING HREFs!
-     *
-     * @param request the request from which to obtain the {@link org.apache.sling.xss.XSSAPI}
-     * @return an XSSAPI service capable of validating hrefs.
-     */
-    XSSAPI getRequestSpecificAPI(SlingHttpServletRequest request);
-
-    /**
-     * Returns an XSSAPI instance capable of mapping resource URLs.
-     * EITHER THIS OR THE REQUEST VERSION MUST BE USED WHEN VALIDATING HREFs!
-     *
-     * @param resourceResolver the resolver from which to obtain the {@link org.apache.sling.xss.XSSAPI}
-     * @return an XSSAPI service capable of validating hrefs.
-     */
-    XSSAPI getResourceResolverSpecificAPI(ResourceResolver resourceResolver);
 
 }

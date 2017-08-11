@@ -16,51 +16,48 @@
  * specific language governing permissions and limitations
  * under the License.
  ******************************************************************************/
-
 package org.apache.sling.scripting.sightly.impl.engine.extension;
 
 import java.util.HashSet;
 import java.util.Set;
 import java.util.regex.Pattern;
 
-import javax.script.Bindings;
-
-import org.apache.felix.scr.annotations.Component;
-import org.apache.felix.scr.annotations.Properties;
-import org.apache.felix.scr.annotations.Property;
-import org.apache.felix.scr.annotations.Service;
-import org.apache.sling.api.SlingHttpServletRequest;
 import org.apache.sling.scripting.sightly.SightlyException;
+import org.apache.sling.scripting.sightly.compiler.RuntimeFunction;
+import org.apache.sling.scripting.sightly.compiler.expression.MarkupContext;
 import org.apache.sling.scripting.sightly.extension.RuntimeExtension;
-import org.apache.sling.scripting.sightly.impl.compiler.CompilerException;
-import org.apache.sling.scripting.sightly.impl.filter.XSSFilter;
-import org.apache.sling.scripting.sightly.impl.html.MarkupUtils;
-import org.apache.sling.scripting.sightly.impl.plugin.MarkupContext;
-import org.apache.sling.scripting.sightly.impl.utils.RenderUtils;
 import org.apache.sling.scripting.sightly.render.RenderContext;
 import org.apache.sling.xss.XSSAPI;
+import org.osgi.service.component.annotations.Component;
+import org.osgi.service.component.annotations.Reference;
+import org.osgi.service.component.annotations.ReferencePolicyOption;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
  * Runtime support for XSS filtering
  */
-@Component
-@Service(RuntimeExtension.class)
-@Properties(
-        @Property(name = RuntimeExtension.NAME, value = XSSFilter.FUNCTION_NAME)
+@Component(
+        service = RuntimeExtension.class,
+        property = {
+                RuntimeExtension.NAME + "=" + RuntimeFunction.XSS
+        }
 )
 public class XSSRuntimeExtension implements RuntimeExtension {
 
-    private static final Set<String> elementNameWhiteList = new HashSet<String>();
+    @Reference(policyOption = ReferencePolicyOption.GREEDY)
+    private XSSAPI xssApi;
+
+    private static final Set<String> elementNameWhiteList = new HashSet<>();
     private static final Logger LOG = LoggerFactory.getLogger(XSSRuntimeExtension.class);
     private static final Pattern VALID_ATTRIBUTE = Pattern.compile("^[a-zA-Z_:][\\-a-zA-Z0-9_:\\.]*$");
+    private static final Pattern ATTRIBUTE_BLACKLIST = Pattern.compile("^(style|(on.*))$", Pattern.CASE_INSENSITIVE);
 
     @Override
     public Object call(final RenderContext renderContext, Object... arguments) {
         if (arguments.length < 2) {
             throw new SightlyException(
-                    String.format("Extension %s requires at least %d arguments", XSSFilter.FUNCTION_NAME, 2));
+                    String.format("Extension %s requires at least %d arguments", RuntimeFunction.XSS, 2));
         }
         Object original = arguments[0];
         Object option = arguments[1];
@@ -80,48 +77,50 @@ public class XSSRuntimeExtension implements RuntimeExtension {
             LOG.warn("Expression context {} is invalid, expression will be replaced by the empty string", option);
             return "";
         }
-        String text = RenderUtils.toString(original);
-        final XSSAPI xssapi = obtainAPI(renderContext.getBindings());
-        return applyXSSFilter(xssapi, text, hint, markupContext);
+        String text = renderContext.getObjectModel().toString(original);
+        return applyXSSFilter(text, hint, markupContext);
     }
 
-    private String applyXSSFilter(final XSSAPI xssapi, String text, Object hint, MarkupContext xssContext) {
+    private String applyXSSFilter(String text, Object hint, MarkupContext xssContext) {
         if (xssContext.equals(MarkupContext.ATTRIBUTE) && hint instanceof String) {
             String attributeName = (String) hint;
             MarkupContext attrMarkupContext = getAttributeMarkupContext(attributeName);
-            return applyXSSFilter(xssapi, text, attrMarkupContext);
+            return applyXSSFilter(text, attrMarkupContext);
         }
-        return applyXSSFilter(xssapi, text, xssContext);
+        return applyXSSFilter(text, xssContext);
     }
 
-    private String applyXSSFilter(final XSSAPI xssapi, String text, MarkupContext xssContext) {
+    private String applyXSSFilter(String text, MarkupContext xssContext) {
         switch (xssContext) {
             case ATTRIBUTE:
-                return xssapi.encodeForHTMLAttr(text);
+                return xssApi.encodeForHTMLAttr(text);
             case COMMENT:
             case TEXT:
-                return xssapi.encodeForHTML(text);
+                return xssApi.encodeForHTML(text);
             case ATTRIBUTE_NAME:
                 return escapeAttributeName(text);
             case NUMBER:
-                return xssapi.getValidLong(text, 0).toString();
+                Long result = xssApi.getValidLong(text, 0);
+                if (result != null) {
+                    return result.toString();
+                }
             case URI:
-                return xssapi.getValidHref(text);
+                return xssApi.getValidHref(text);
             case SCRIPT_TOKEN:
-                return xssapi.getValidJSToken(text, "");
+                return xssApi.getValidJSToken(text, "");
             case STYLE_TOKEN:
-                return xssapi.getValidStyleToken(text, "");
+                return xssApi.getValidStyleToken(text, "");
             case SCRIPT_STRING:
-                return xssapi.encodeForJSString(text);
+                return xssApi.encodeForJSString(text);
             case STYLE_STRING:
-                return xssapi.encodeForCSSString(text);
+                return xssApi.encodeForCSSString(text);
             case SCRIPT_COMMENT:
             case STYLE_COMMENT:
-                return xssapi.getValidMultiLineComment(text, "");
+                return xssApi.getValidMultiLineComment(text, "");
             case ELEMENT_NAME:
                 return escapeElementName(text);
             case HTML:
-                return xssapi.filterHTML(text);
+                return xssApi.filterHTML(text);
         }
         return text; //todo: apply the rest of XSS filters
     }
@@ -132,14 +131,6 @@ public class XSSRuntimeExtension implements RuntimeExtension {
             return original;
         }
         return "";
-    }
-
-    private XSSAPI obtainAPI(Bindings bindings) {
-        SlingHttpServletRequest request = (SlingHttpServletRequest) bindings.get("request");
-        if (request == null) {
-            throw new CompilerException("Cannot obtain request from bindings");
-        }
-        return request.adaptTo(XSSAPI.class);
     }
 
     private MarkupContext getAttributeMarkupContext(String attributeName) {
@@ -154,7 +145,7 @@ public class XSSRuntimeExtension implements RuntimeExtension {
             return null;
         }
         attributeName = attributeName.trim();
-        if (matchPattern(VALID_ATTRIBUTE, attributeName) && !MarkupUtils.isSensitiveAttribute(attributeName)) {
+        if (matchPattern(VALID_ATTRIBUTE, attributeName) && !isSensitiveAttribute(attributeName)) {
             return attributeName;
         }
         return null;
@@ -234,4 +225,7 @@ public class XSSRuntimeExtension implements RuntimeExtension {
         elementNameWhiteList.add("th");
     }
 
+    private boolean isSensitiveAttribute(String name) {
+        return ATTRIBUTE_BLACKLIST.matcher(name).matches();
+    }
 }

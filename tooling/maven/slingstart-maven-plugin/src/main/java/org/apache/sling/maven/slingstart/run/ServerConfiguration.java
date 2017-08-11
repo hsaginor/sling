@@ -49,7 +49,11 @@ public class ServerConfiguration implements Serializable {
     /** The vm options. */
     private String vmOpts = DEFAULT_VM_OPTS;
 
-    /** Attach a debugger to the forked JVM. If set to "true", the process will allow a debugger to attach on port 8000. If set to some other string, that string will be appended to the vmOpts, allowing you to configure arbitrary debuggability options (without overwriting the other options specified through the vmOpts parameter).*/
+    /** 
+     * If set to {@code "true"}, the process will allow a debugger to connect on port 8000. 
+     * If set to some other string, that string will be appended to this server's {@code vmOpts}, allowing you to configure arbitrary debugging options.
+     * If the global configuration property {@link StartMojo#debug} is set on the mojo itself, it will be used instead.
+     */
     private String debug;
 
     /** Additional application options. */
@@ -60,6 +64,13 @@ public class ServerConfiguration implements Serializable {
 
     /** The folder to use. */
     private File folder;
+    
+    /**
+     * The relative filename of the file which receives both the standard output (stdout) and standard error (stderr) of the server processes. 
+     * If null or empty string the server process inherits stdout from the parent process (i.e. the Maven process).
+     * The given filename must be relative to the working directory of the according server.
+     */
+    private String stdOutFile;
 
     /**
      * Get the instance id
@@ -164,6 +175,14 @@ public class ServerConfiguration implements Serializable {
         this.controlPort = controlPort;
     }
 
+    public String getStdOutFile() {
+        return stdOutFile;
+    }
+
+    public void setStdOutFile(String stdOutFile) {
+        this.stdOutFile = stdOutFile;
+    }
+
     /**
      * Get the server
      * @return The server
@@ -185,7 +204,7 @@ public class ServerConfiguration implements Serializable {
         copy.setInstances(1);
         copy.setFolder(this.getFolder());
         copy.setControlPort(this.getControlPort());
-
+        copy.setStdOutFile(this.stdOutFile);
         return copy;
     }
 
@@ -195,6 +214,6 @@ public class ServerConfiguration implements Serializable {
                 + ", port=" + port + ", controlPort=" + controlPort
                 + ", contextPath=" + contextPath
                 + ", vmOpts=" + vmOpts + ", vmDebugOpts=" + getVmDebugOpts(null) + ", opts=" + opts + ", instances="
-                + instances + ", folder=" + folder + "]";
+                + instances + ", folder=" + folder + ", stdout=" + stdOutFile + "]";
     }
 }

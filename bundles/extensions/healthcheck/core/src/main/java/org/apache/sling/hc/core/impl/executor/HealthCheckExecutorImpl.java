@@ -31,10 +31,11 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.ListIterator;
 import java.util.Map;
 import java.util.Set;
 
-import org.apache.commons.lang.time.StopWatch;
+import org.apache.commons.lang3.time.StopWatch;
 import org.apache.felix.scr.annotations.Activate;
 import org.apache.felix.scr.annotations.Component;
 import org.apache.felix.scr.annotations.Deactivate;
@@ -52,6 +53,7 @@ import org.apache.sling.hc.api.ResultLog;
 import org.apache.sling.hc.api.execution.HealthCheckExecutionOptions;
 import org.apache.sling.hc.api.execution.HealthCheckExecutionResult;
 import org.apache.sling.hc.api.execution.HealthCheckExecutor;
+import org.apache.sling.hc.api.execution.HealthCheckSelector;
 import org.apache.sling.hc.util.FormattingResultLog;
 import org.apache.sling.hc.util.HealthCheckFilter;
 import org.apache.sling.hc.util.HealthCheckMetadata;
@@ -90,11 +92,11 @@ public class HealthCheckExecutorImpl implements ExtendedHealthCheckExecutor, Ser
             description = "Threshold in ms until a check is marked as 'exceedingly' timed out and will marked CRITICAL instead of WARN only",
             longValue = LONGRUNNING_FUTURE_THRESHOLD_CRITICAL_DEFAULT_MS)
 
-    private static final long RESULT_CACHE_TTLL_DEFAULT_MS = 1000 * 2;
+    private static final long RESULT_CACHE_TTL_DEFAULT_MS = 1000 * 2;
     public static final String PROP_RESULT_CACHE_TTL_MS = "resultCacheTtlInMs";
     @Property(name = PROP_RESULT_CACHE_TTL_MS, label = "Results Cache TTL in Ms",
             description = "Result Cache time to live - results will be cached for the given time",
-            longValue = RESULT_CACHE_TTLL_DEFAULT_MS)
+            longValue = RESULT_CACHE_TTL_DEFAULT_MS)
 
 
     private long timeoutInMs;
@@ -109,7 +111,7 @@ public class HealthCheckExecutorImpl implements ExtendedHealthCheckExecutor, Ser
 
     @Reference
     private AsyncHealthCheckExecutor asyncHealthCheckExecutor;
-    
+
     @Reference
     private ThreadPoolManager threadPoolManager;
     private ThreadPool hcThreadPool;
@@ -149,9 +151,9 @@ public class HealthCheckExecutorImpl implements ExtendedHealthCheckExecutor, Ser
             this.longRunningFutureThresholdForRedMs = LONGRUNNING_FUTURE_THRESHOLD_CRITICAL_DEFAULT_MS;
         }
 
-        this.resultCacheTtlInMs = PropertiesUtil.toLong(properties.get(PROP_RESULT_CACHE_TTL_MS), RESULT_CACHE_TTLL_DEFAULT_MS);
+        this.resultCacheTtlInMs = PropertiesUtil.toLong(properties.get(PROP_RESULT_CACHE_TTL_MS), RESULT_CACHE_TTL_DEFAULT_MS);
         if (this.resultCacheTtlInMs <= 0L) {
-            this.resultCacheTtlInMs = RESULT_CACHE_TTLL_DEFAULT_MS;
+            this.resultCacheTtlInMs = RESULT_CACHE_TTL_DEFAULT_MS;
         }
     }
 
@@ -171,9 +173,29 @@ public class HealthCheckExecutorImpl implements ExtendedHealthCheckExecutor, Ser
         }
     }
 
+    @Override
+    public List<HealthCheckExecutionResult> execute(HealthCheckSelector selector) {
+        return execute(selector, new HealthCheckExecutionOptions());
+    }
+
+    @Override
+    public List<HealthCheckExecutionResult> execute(HealthCheckSelector selector, HealthCheckExecutionOptions options) {
+        logger.debug("Starting executing checks for filter selector {} and execution options {}", selector, options);
+
+        final HealthCheckFilter filter = new HealthCheckFilter(this.bundleContext);
+        try {
+            final ServiceReference[] healthCheckReferences = filter.getHealthCheckServiceReferences(selector, options.isCombineTagsWithOr());
+
+            return this.execute(healthCheckReferences, options);
+        } finally {
+            filter.dispose();
+        }
+    }
+
     /**
      * @see org.apache.sling.hc.api.execution.HealthCheckExecutor#execute(String[])
      */
+    @SuppressWarnings("deprecation")
     @Override
     public List<HealthCheckExecutionResult> execute(final String... tags) {
         return execute(/*default options*/new HealthCheckExecutionOptions(), tags);
@@ -182,18 +204,10 @@ public class HealthCheckExecutorImpl implements ExtendedHealthCheckExecutor, Ser
     /**
      * @see org.apache.sling.hc.api.execution.HealthCheckExecutor#execute(HealthCheckExecutionOptions, String...)
      */
+    @SuppressWarnings("deprecation")
     @Override
     public List<HealthCheckExecutionResult> execute(HealthCheckExecutionOptions options, final String... tags) {
-        logger.debug("Starting executing checks for tags {} and execution options {}", tags == null ? "*" : tags, options);
-
-        final HealthCheckFilter filter = new HealthCheckFilter(this.bundleContext);
-        try {
-            final ServiceReference[] healthCheckReferences = filter.getTaggedHealthCheckServiceReferences(options.isCombineTagsWithOr(), tags);
-
-            return this.execute(healthCheckReferences, options);
-        } finally {
-            filter.dispose();
-        }
+        return execute(HealthCheckSelector.tags(tags), options);
     }
 
     /**
@@ -215,7 +229,7 @@ public class HealthCheckExecutorImpl implements ExtendedHealthCheckExecutor, Ser
         final List<HealthCheckExecutionResult> results = new ArrayList<HealthCheckExecutionResult>();
         final List<HealthCheckMetadata> healthCheckDescriptors = getHealthCheckMetadata(healthCheckReferences);
 
-        
+
         createResultsForDescriptors(healthCheckDescriptors, results, options);
 
         stopWatch.stop();
@@ -236,15 +250,15 @@ public class HealthCheckExecutorImpl implements ExtendedHealthCheckExecutor, Ser
     }
 
     private void createResultsForDescriptors(final List<HealthCheckMetadata> healthCheckDescriptors,
-            final Collection<HealthCheckExecutionResult> results, HealthCheckExecutionOptions options) {
+            final List<HealthCheckExecutionResult> results, HealthCheckExecutionOptions options) {
         // -- All methods below check if they can transform a healthCheckDescriptor into a result
         // -- if yes the descriptor is removed from the list and the result added
 
         // get async results
         if (!options.isForceInstantExecution()) {
-            asyncHealthCheckExecutor.collectAsyncResults(healthCheckDescriptors, results);
+            asyncHealthCheckExecutor.collectAsyncResults(healthCheckDescriptors, results, healthCheckResultCache);
         }
-        
+
         // reuse cached results where possible
         if (!options.isForceInstantExecution()) {
             healthCheckResultCache.useValidCacheResults(healthCheckDescriptors, results, resultCacheTtlInMs);
@@ -256,6 +270,22 @@ public class HealthCheckExecutorImpl implements ExtendedHealthCheckExecutor, Ser
         // wait for futures at most until timeout (but will return earlier if all futures are finished)
         waitForFuturesRespectingTimeout(futures, options);
         collectResultsFromFutures(futures, results);
+
+        // respect sticky results if configured via HealthCheck.WARNINGS_STICK_FOR_MINUTES
+        appendStickyResultLogIfConfigured(results);
+
+    }
+
+    private void appendStickyResultLogIfConfigured(List<HealthCheckExecutionResult> results) {
+        ListIterator<HealthCheckExecutionResult> resultsIt = results.listIterator();
+        while (resultsIt.hasNext()) {
+            HealthCheckExecutionResult result = resultsIt.next();
+            Long warningsStickForMinutes = result.getHealthCheckMetadata().getWarningsStickForMinutes();
+            if (warningsStickForMinutes != null && warningsStickForMinutes > 0) {
+                result = healthCheckResultCache.createExecutionResultWithStickyResults(result);
+                resultsIt.set(result);
+            }
+        }
     }
 
     private HealthCheckExecutionResult createResultsForDescriptor(final HealthCheckMetadata metadata) {
@@ -341,7 +371,21 @@ public class HealthCheckExecutorImpl implements ExtendedHealthCheckExecutor, Ser
             });
             this.stillRunningFutures.put(metadata, future);
 
-            this.hcThreadPool.execute(future);
+            final HealthCheckFuture newFuture = future;
+            this.hcThreadPool.execute(new Runnable() {
+                @Override
+                public void run() {
+                    newFuture.run();
+                    synchronized ( stillRunningFutures ) {
+                        // notify executor threads that newFuture is finished. Wrapping it in another runnable
+                        // ensures that newFuture.isDone() will return true (if e.g. done in callback above, there are
+                        // still a few lines of code until the future is really done and hence then the executor thread
+                        // is sometime notified a bit too early, still receives the result isDone()=false and then waits
+                        // for another 50ms, even though the future was about to be done one ms later)
+                        stillRunningFutures.notifyAll();
+                    }
+                }
+            });
         }
 
         return future;
@@ -360,9 +404,15 @@ public class HealthCheckExecutorImpl implements ExtendedHealthCheckExecutor, Ser
             effectiveTimeout = options.getOverrideGlobalTimeout();
         }
 
+        if(futuresForResultOfThisCall.isEmpty()) {
+            return; // nothing to wait for (usually because of cached results)
+        }
+
         do {
             try {
-                Thread.sleep(50);
+                synchronized (stillRunningFutures) {
+                    stillRunningFutures.wait(50); // wait for notifications of callbacks of HealthCheckFutures
+                }
             } catch (final InterruptedException ie) {
                 logger.warn("Unexpected InterruptedException while waiting for healthCheckContributors", ie);
             }
@@ -419,7 +469,7 @@ public class HealthCheckExecutorImpl implements ExtendedHealthCheckExecutor, Ser
 
         } else {
             logger.debug("Health Check timed out: {}", hcMetadata);
-            // Futures must not be cancelled as interrupting a health check might leave the system in invalid state 
+            // Futures must not be cancelled as interrupting a health check might leave the system in invalid state
             // (worst case could be a corrupted repository index if using write operations)
 
             // normally we turn the check into WARN (normal timeout), but if the threshold time for CRITICAL is reached for a certain

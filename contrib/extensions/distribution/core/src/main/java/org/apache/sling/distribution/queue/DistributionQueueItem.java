@@ -23,7 +23,7 @@ import java.util.Map;
 
 import org.apache.sling.api.resource.ValueMap;
 import org.apache.sling.api.wrappers.ValueMapDecorator;
-import org.apache.sling.distribution.serialization.DistributionPackage;
+import org.apache.sling.distribution.packaging.DistributionPackage;
 
 /**
  * An item in a {@link DistributionQueue}
@@ -33,23 +33,37 @@ import org.apache.sling.distribution.serialization.DistributionPackage;
  */
 public class DistributionQueueItem extends ValueMapDecorator implements ValueMap {
 
-    private final String id;
+    private final String packageId;
+    private final long size;
 
-    public DistributionQueueItem(@Nonnull String id, Map<String, Object> base) {
+    public DistributionQueueItem(@Nonnull String packageId, Map<String, Object> base) {
+        this(packageId, -1, base);
+    }
+
+    public DistributionQueueItem(String id, long size, Map<String, Object> base) {
         super(base);
-        this.id = id;
+        this.packageId = id;
+        this.size = size;
+
     }
 
     @Nonnull
-    public String getId() {
-        return id;
+    public String getPackageId() {
+        return packageId;
     }
 
+    /**
+     * retrieve the size of the package referenced by this queue item.
+     * @return the size of the underlying package or {@code -1} if not available.
+     */
+    public long getSize() {
+        return size;
+    }
 
     @Override
     public String toString() {
         return "DistributionQueueItem{" +
-                "id='" + id + '\'' +
+                "id='" + packageId + '\'' +
                 ", info=" + super.toString() +
                 '}';
     }

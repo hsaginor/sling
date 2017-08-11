@@ -53,7 +53,7 @@ import org.thymeleaf.messageresolver.IMessageResolver;
 public class ResourceBundleMessageResolver implements IMessageResolver {
 
     @Reference(
-        cardinality = ReferenceCardinality.OPTIONAL,
+        cardinality = ReferenceCardinality.MANDATORY,
         policy = ReferencePolicy.DYNAMIC,
         policyOption = ReferencePolicyOption.GREEDY,
         bind = "setResourceBundleProvider",
@@ -99,19 +99,19 @@ public class ResourceBundleMessageResolver implements IMessageResolver {
 
     @Activate
     private void activate(final ResourceBundleMessageResolverConfiguration configuration) {
-        logger.debug("activate");
+        logger.debug("activating");
         configure(configuration);
     }
 
     @Modified
     private void modified(final ResourceBundleMessageResolverConfiguration configuration) {
-        logger.debug("modified");
+        logger.debug("modifying");
         configure(configuration);
     }
 
     @Deactivate
     private void deactivate() {
-        logger.debug("deactivate");
+        logger.debug("deactivating");
     }
 
     private void configure(final ResourceBundleMessageResolverConfiguration configuration) {
@@ -133,8 +133,14 @@ public class ResourceBundleMessageResolver implements IMessageResolver {
     public String resolveMessage(final ITemplateContext templateContext, final Class<?> origin, final String key, final Object[] messageParameters) {
         logger.debug("resolving message for '{}' ({}) with message parameters {}", key, origin, messageParameters);
         // TODO can origin be useful with Sling i18n?
+        if (key == null) {
+            return null;
+        }
         final Locale locale = templateContext.getLocale();
         final ResourceBundle resourceBundle = resourceBundleProvider.getResourceBundle(locale);
+        if (resourceBundle == null) {
+            return null;
+        }
         final String string = resourceBundle.getString(key);
         final MessageFormat messageFormat = new MessageFormat(string, locale);
         final String message = messageFormat.format((messageParameters != null ? messageParameters : EMPTY_MESSAGE_PARAMETERS));

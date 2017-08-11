@@ -89,7 +89,7 @@ class SimpleReadableResource extends AbstractResource {
     public <AdapterType> AdapterType adaptTo(Class<AdapterType> type) {
 
         if (type == ValueMap.class || type == Map.class) {
-            return (AdapterType) new ValueMapDecorator(getProperties());
+            return type.cast(new ValueMapDecorator(getProperties()));
         } else {
             if (adapters != null) {
                 for (Object adapter : adapters) {
@@ -102,7 +102,7 @@ class SimpleReadableResource extends AbstractResource {
                             return convertArray(type, adapterArray);
                         }
                     } else if (type.isAssignableFrom(adapter.getClass())) {
-                        return (AdapterType) adapter;
+                        return type.cast(adapter);
                     }
                 }
             }
@@ -110,7 +110,7 @@ class SimpleReadableResource extends AbstractResource {
         return super.adaptTo(type);
     }
 
-
+    @SuppressWarnings( "unchecked" )
     private <ArrayType> ArrayType convertArray(Class<ArrayType> arrayType, Object[] array) {
         Object[] result = (Object[]) Array.newInstance(arrayType.getComponentType(), array.length);
         for (int i = 0; i < array.length; i++) {
@@ -119,7 +119,7 @@ class SimpleReadableResource extends AbstractResource {
             }
             result[i] = array[i];
         }
-
+        // when invoking convertArray() method, ArrayType is checked that is an array type
         return (ArrayType) result;
     }
 }

@@ -1,6 +1,5 @@
-Apache Sling Scripting Sightly Engine
+Apache Sling Scripting HTL Engine
 ====
 
-This package contains a Java implementation of the Sightly templating language specification.
-
-The current available documentation can be checked out at [http://docs.adobe.com/docs/en/aem/6-0/develop/sightly.html](http://docs.adobe.com/docs/en/aem/6-0/develop/sightly.html).
+This package contains a Java implementation of the [HTML Template Language specification](https://github
+.com/Adobe-Marketing-Cloud/htl-spec).

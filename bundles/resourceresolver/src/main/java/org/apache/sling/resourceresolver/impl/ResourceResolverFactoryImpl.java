@@ -60,6 +60,7 @@ public class ResourceResolverFactoryImpl implements ResourceResolverFactory {
     /**
      * @see org.apache.sling.api.resource.ResourceResolverFactory#getServiceResourceResolver(java.util.Map)
      */
+    @Override
     public ResourceResolver getServiceResourceResolver(final Map<String, Object> passedAuthenticationInfo) throws LoginException {
         // create a copy of the passed authentication info as we modify the map
         final Map<String, Object> authenticationInfo = new HashMap<String, Object>();
@@ -73,19 +74,23 @@ public class ResourceResolverFactoryImpl implements ResourceResolverFactory {
             subServiceName = null;
         }
 
-        // Ensure a mapped user name: If no user is defined for a bundle
-        // acting as a service, the user may be null. We can decide whether
+        // Ensure a mapped user or principal name(s): If no user/principal names is/are
+        // defined for a bundle acting as a service, the user may be null. We can decide whether
         // this should yield guest access or no access at all. For now
         // no access is granted if there is no service user defined for
         // the bundle.
-        final String userName = this.serviceUserMapper.getServiceUserID(this.usingBundle, subServiceName);
-        if (userName == null) {
-            throw new LoginException("Cannot derive user name for bundle "
-                + this.usingBundle + " and sub service " + subServiceName);
+        final Iterable<String> principalNames = this.serviceUserMapper.getServicePrincipalNames(this.usingBundle, subServiceName);
+        if (principalNames == null) {
+            final String userName = this.serviceUserMapper.getServiceUserID(this.usingBundle, subServiceName);
+            if (userName == null) {
+                throw new LoginException("Cannot derive user name for bundle "
+                        + this.usingBundle + " and sub service " + subServiceName);
+            } else {
+                // ensure proper user name
+                authenticationInfo.put(ResourceResolverFactory.USER, userName);
+            }
         }
-
-        // ensure proper user name and service bundle
-        authenticationInfo.put(ResourceResolverFactory.USER, userName);
+        // ensure proper service bundle
         authenticationInfo.put(ResourceProvider.AUTH_SERVICE_BUNDLE, this.usingBundle);
 
         return commonFactory.getResourceResolverInternal(authenticationInfo, false);
@@ -94,6 +99,7 @@ public class ResourceResolverFactoryImpl implements ResourceResolverFactory {
     /**
      * @see org.apache.sling.api.resource.ResourceResolverFactory#getResourceResolver(java.util.Map)
      */
+    @Override
     public ResourceResolver getResourceResolver(
             final Map<String, Object> authenticationInfo) throws LoginException {
         return commonFactory.getResourceResolver(authenticationInfo);
@@ -102,14 +108,24 @@ public class ResourceResolverFactoryImpl implements ResourceResolverFactory {
     /**
      * @see org.apache.sling.api.resource.ResourceResolverFactory#getAdministrativeResourceResolver(java.util.Map)
      */
+    @Override
     public ResourceResolver getAdministrativeResourceResolver(
-            final Map<String, Object> authenticationInfo) throws LoginException {
+            Map<String, Object> authenticationInfo) throws LoginException {
+        // usingBundle is required as bundles must now be whitelisted to use this method
+        if(usingBundle == null) {
+            throw new LoginException("usingBundle is null");
+        }
+        if(authenticationInfo == null) {
+            authenticationInfo = new HashMap<String, Object>();
+        }
+        authenticationInfo.put(ResourceProvider.AUTH_SERVICE_BUNDLE, this.usingBundle);
         return commonFactory.getAdministrativeResourceResolver(authenticationInfo);
     }
 
     /**
      * @see org.apache.sling.api.resource.ResourceResolverFactory#getThreadResourceResolver()
      */
+    @Override
     public ResourceResolver getThreadResourceResolver() {
         return commonFactory.getThreadResourceResolver();
     }

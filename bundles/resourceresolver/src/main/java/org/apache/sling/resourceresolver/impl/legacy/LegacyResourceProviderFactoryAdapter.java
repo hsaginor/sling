@@ -25,7 +25,7 @@ import java.util.Map;
 import javax.annotation.CheckForNull;
 import javax.annotation.Nonnull;
 
-import org.apache.commons.lang.ArrayUtils;
+import org.apache.commons.lang3.ArrayUtils;
 import org.apache.sling.api.resource.LoginException;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
@@ -130,7 +130,6 @@ public class LegacyResourceProviderFactoryAdapter extends ResourceProvider<Legac
         return ctx.getProviderState().hasChanges((ResolveContext) ctx);
     }
 
-    @SuppressWarnings("unchecked")
     @Override
     public <AdapterType> AdapterType adaptTo(final @Nonnull ResolveContext<LegacyResourceProviderAdapter> ctx, final @Nonnull Class<AdapterType> type) {
         return (AdapterType) ctx.getProviderState().adaptTo((ResolveContext)ctx, type);

@@ -18,10 +18,11 @@
  */
 package org.apache.sling.jcr.api;
 
+import javax.annotation.Nonnull;
 import javax.jcr.RepositoryException;
 import javax.jcr.Session;
 
-import aQute.bnd.annotation.ConsumerType;
+import org.osgi.annotation.versioning.ConsumerType;
 
 /**
  * This interface is used to customize the namespace mapping of
@@ -39,6 +40,5 @@ public interface NamespaceMapper {
      * @param session The new session
      * @throws RepositoryException If anything goes wrong
      */
-    void defineNamespacePrefixes(Session session)
-    throws RepositoryException;
+    void defineNamespacePrefixes(@Nonnull Session session) throws RepositoryException;
 }

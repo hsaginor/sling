@@ -18,16 +18,21 @@
  */
 package org.apache.sling.testing.mock.jcr;
 
+import java.util.Collections;
+
 import javax.jcr.RepositoryException;
 import javax.jcr.observation.EventJournal;
 import javax.jcr.observation.EventListener;
 import javax.jcr.observation.EventListenerIterator;
 import javax.jcr.observation.ObservationManager;
 
+import org.apache.jackrabbit.api.observation.JackrabbitEventFilter;
+import org.apache.jackrabbit.api.observation.JackrabbitObservationManager;
+
 /**
  * Mock {@link ObservationManager} implementation.
  */
-class MockObservationManager implements ObservationManager {
+class MockObservationManager implements ObservationManager, JackrabbitObservationManager {
 
     @Override
     public void addEventListener(final EventListener listener, final int eventTypes, final String absPath,
@@ -37,30 +42,36 @@ class MockObservationManager implements ObservationManager {
     }
 
     @Override
+    public void addEventListener(EventListener listener, JackrabbitEventFilter filter) throws RepositoryException {
+        // do nothing
+    }
+
+    @Override
     public void removeEventListener(final EventListener listener) throws RepositoryException {
         // do nothing
     }
 
-    // --- unsupported operations ---
     @Override
     public EventListenerIterator getRegisteredEventListeners() throws RepositoryException {
-        throw new UnsupportedOperationException();
+        return new MockEventListenerIterator(Collections.emptyList());
     }
 
     @Override
     public void setUserData(final String userData) throws RepositoryException {
-        throw new UnsupportedOperationException();
+        // accept call but ignore it
     }
 
     @Override
     public EventJournal getEventJournal() throws RepositoryException {
-        throw new UnsupportedOperationException();
+        // always return null
+        return null;
     }
 
     @Override
     public EventJournal getEventJournal(final int eventTypes, final String absPath, final boolean isDeep,
             final String[] uuid, final String[] nodeTypeName) throws RepositoryException {
-        throw new UnsupportedOperationException();
+        // always return null
+        return null;
     }
 
 }

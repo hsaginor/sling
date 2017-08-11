@@ -163,6 +163,9 @@ public class SlingBindings extends HashMap<String, Object> {
 
     /**
      * Helper method to get an object with a given type from this map.
+     * @param key The key for the object
+     * @param <ObjectType> The object type
+     * @param type The object type
      * @return The searched object if it has the specified type, otherwise <code>null</code> is returned.
      */
     @SuppressWarnings("unchecked")
@@ -176,6 +179,8 @@ public class SlingBindings extends HashMap<String, Object> {
 
     /**
      * Helper method which invokes {@link #put(Object, Object)} only if the value is not null.
+     * @param key The key of the object
+     * @param value The value
      */
     protected void safePut(final String key, final Object value) {
         if ( value != null ) {
@@ -185,6 +190,7 @@ public class SlingBindings extends HashMap<String, Object> {
 
     /**
      * Sets the {@link #FLUSH} property to <code>flush</code>.
+     * @param flush Whether to flush or not
      */
     public void setFlush(boolean flush) {
         put(FLUSH, flush);
@@ -193,6 +199,7 @@ public class SlingBindings extends HashMap<String, Object> {
     /**
      * Returns the {@link #FLUSH} property if not <code>null</code> and a
      * <code>boolean</code>. Otherwise <code>false</code> is returned.
+     * @return {@code true} if flush
      */
     public boolean getFlush() {
         Boolean value = this.get(FLUSH, Boolean.class);
@@ -206,6 +213,7 @@ public class SlingBindings extends HashMap<String, Object> {
     /**
      * Sets the {@link #LOG} property to <code>log</code> if not
      * <code>null</code>.
+     * @param log The logger
      */
     public void setLog(Logger log) {
         this.safePut(LOG, log);
@@ -215,6 +223,7 @@ public class SlingBindings extends HashMap<String, Object> {
      * Returns the {@link #LOG} property if not <code>null</code> and a
      * <code>org.slf4j.Logger</code> instance. Otherwise <code>null</code>
      * is returned.
+     * @return The logger or {@code null}
      */
     public @CheckForNull Logger getLog() {
         return this.get(LOG, Logger.class);
@@ -223,6 +232,7 @@ public class SlingBindings extends HashMap<String, Object> {
     /**
      * Sets the {@link #OUT} property to <code>out</code> if not
      * <code>null</code>.
+     * @param out The print writer
      */
     public void setOut(PrintWriter out) {
         this.safePut(OUT, out);
@@ -232,6 +242,7 @@ public class SlingBindings extends HashMap<String, Object> {
      * Returns the {@link #OUT} property if not <code>null</code> and a
      * <code>PrintWriter</code> instance. Otherwise <code>null</code> is
      * returned.
+     * @return The print writer or {@code null}
      */
     public @CheckForNull PrintWriter getOut() {
         return this.get(OUT, PrintWriter.class);
@@ -240,6 +251,7 @@ public class SlingBindings extends HashMap<String, Object> {
     /**
      * Sets the {@link #REQUEST} property to <code>request</code> if not
      * <code>null</code>.
+     * @param request The request object.
      */
     public void setRequest(SlingHttpServletRequest request) {
         this.safePut(REQUEST, request);
@@ -249,6 +261,7 @@ public class SlingBindings extends HashMap<String, Object> {
      * Returns the {@link #REQUEST} property if not <code>null</code> and a
      * <code>SlingHttpServletRequest</code> instance. Otherwise
      * <code>null</code> is returned.
+     * @return The request object or {@code null}
      */
     public @CheckForNull SlingHttpServletRequest getRequest() {
         return this.get(REQUEST, SlingHttpServletRequest.class);
@@ -257,6 +270,7 @@ public class SlingBindings extends HashMap<String, Object> {
     /**
      * Sets the {@link #READER} property to <code>reader</code> if not
      * <code>null</code>.
+     * @param reader The reader
      */
     public void setReader(Reader reader) {
         this.safePut(READER, reader);
@@ -266,6 +280,7 @@ public class SlingBindings extends HashMap<String, Object> {
      * Returns the {@link #READER} property if not <code>null</code> and a
      * <code>Reader</code> instance. Otherwise <code>null</code> is
      * returned.
+     * @return The reader or {@code null}.
      */
     public @CheckForNull Reader getReader() {
         return this.get(READER, Reader.class);
@@ -274,6 +289,7 @@ public class SlingBindings extends HashMap<String, Object> {
     /**
      * Sets the {@link #RESOURCE} property to <code>resource</code> if not
      * <code>null</code>.
+     * @param resource The resource
      */
     public void setResource(Resource resource) {
         this.safePut(RESOURCE, resource);
@@ -283,6 +299,7 @@ public class SlingBindings extends HashMap<String, Object> {
      * Returns the {@link #RESOURCE} property if not <code>null</code> and a
      * <code>Resource</code> instance. Otherwise <code>null</code> is
      * returned.
+     * @return The resource or {@code null}.
      */
     public @CheckForNull Resource getResource() {
         return this.get(RESOURCE, Resource.class);
@@ -309,6 +326,7 @@ public class SlingBindings extends HashMap<String, Object> {
     /**
      * Sets the {@link #RESPONSE} property to <code>response</code> if not
      * <code>null</code>.
+     * @param response The response
      */
     public void setResponse(SlingHttpServletResponse response) {
         this.safePut(RESPONSE, response);
@@ -318,6 +336,7 @@ public class SlingBindings extends HashMap<String, Object> {
      * Returns the {@link #RESPONSE} property if not <code>null</code> and a
      * <code>SlingHttpServletResponse</code> instance. Otherwise
      * <code>null</code> is returned.
+     * @return The response or {@code null}.
      */
     public @CheckForNull SlingHttpServletResponse getResponse() {
         return this.get(RESPONSE, SlingHttpServletResponse.class);
@@ -326,6 +345,7 @@ public class SlingBindings extends HashMap<String, Object> {
     /**
      * Sets the {@link #SLING} property to <code>sling</code> if not
      * <code>null</code>.
+     * @param sling The script helper
      */
     public void setSling(SlingScriptHelper sling) {
         this.safePut(SLING, sling);
@@ -335,6 +355,7 @@ public class SlingBindings extends HashMap<String, Object> {
      * Returns the {@link #SLING} property if not <code>null</code> and a
      * <code>SlingScriptHelper</code> instance. Otherwise <code>null</code>
      * is returned.
+     * @return The script helper or {@code null}.
      */
     public @CheckForNull SlingScriptHelper getSling() {
         return this.get(SLING, SlingScriptHelper.class);

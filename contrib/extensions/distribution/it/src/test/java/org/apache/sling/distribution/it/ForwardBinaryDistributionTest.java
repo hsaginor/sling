@@ -19,7 +19,7 @@
 package org.apache.sling.distribution.it;
 
 import static org.apache.sling.distribution.it.DistributionUtils.assertExists;
-import static org.apache.sling.distribution.it.DistributionUtils.distribute;
+import static org.apache.sling.distribution.it.DistributionUtils.distributeDeep;
 
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
@@ -27,7 +27,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Random;
 
-import org.apache.commons.io.IOUtils;
 import org.apache.sling.distribution.DistributionRequestType;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -39,7 +38,7 @@ public class ForwardBinaryDistributionTest extends DistributionIntegrationTestBa
     @Parameterized.Parameters
     public static Collection<Object[]> generateData() {
         return Arrays.asList(new Object[][] {
-                { true },
+                //{ true },
                 { false },
         });
     }
@@ -58,7 +57,7 @@ public class ForwardBinaryDistributionTest extends DistributionIntegrationTestBa
 		authorClient.upload(nodePath, data, -1, true);
 
 		assertExists(authorClient, nodePath);
-        distribute(author, "publish", DistributionRequestType.ADD, nodePath);
+        distributeDeep(author, "publish", DistributionRequestType.ADD, nodePath);
         assertExists(publishClient, nodePath);
         //TODO: also inspect the package size in binaryless case
 	}

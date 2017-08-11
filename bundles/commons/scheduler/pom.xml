@@ -23,13 +23,13 @@
     <parent>
         <groupId>org.apache.sling</groupId>
         <artifactId>sling</artifactId>
-        <version>26</version>
+        <version>31</version>
         <relativePath />
     </parent>
 
     <artifactId>org.apache.sling.commons.scheduler</artifactId>
     <packaging>bundle</packaging>
-    <version>2.4.15-SNAPSHOT</version>
+    <version>2.6.3-SNAPSHOT</version>
 
     <name>Apache Sling Scheduler Support</name>
     <description>
@@ -46,17 +46,10 @@
         <plugins>
             <plugin>
                 <groupId>org.apache.felix</groupId>
-                <artifactId>maven-scr-plugin</artifactId>
-            </plugin>
-            <plugin>
-                <groupId>org.apache.felix</groupId>
                 <artifactId>maven-bundle-plugin</artifactId>
                 <extensions>true</extensions>
                 <configuration>
                     <instructions>
-                        <Private-Package>
-                            org.apache.sling.commons.scheduler.impl
-                        </Private-Package>
                         <Import-Package>
                             !commonj.work,
                             !com.mchange.v2.c3p0,
@@ -86,11 +79,13 @@
                             !weblogic.jdbc.vendor.oracle,
                             org.apache.sling.discovery;resolution:=optional,
                             org.apache.sling.settings;resolution:=optional,
+                            org.apache.sling.hc.api;resolution:=optional,
                             *                        
                         </Import-Package>
                         <DynamicImport-Package>
                             org.apache.sling.discovery;version="[1.0,2)",
                             org.apache.sling.settings;version="[1.0,2)",
+                            org.apache.sling.hc.api,
                             commonj.work,
                             com.mchange.v2.c3p0,
                             javax.ejb,
@@ -124,10 +119,6 @@
                     </instructions>
                 </configuration>
             </plugin>
-        </plugins>
-    </build>
-    <reporting>
-        <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-javadoc-plugin</artifactId>
@@ -138,19 +129,17 @@
                 </configuration>
             </plugin>
         </plugins>
-    </reporting>
+    </build>
     <dependencies>
         <dependency>
-            <groupId>org.apache.felix</groupId>
-            <artifactId>org.apache.felix.scr.annotations</artifactId>
+            <groupId>org.osgi</groupId>
+            <artifactId>osgi.core</artifactId>
         </dependency>
         <dependency>
             <groupId>org.osgi</groupId>
-            <artifactId>org.osgi.core</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.osgi</groupId>
-            <artifactId>org.osgi.compendium</artifactId>
+            <artifactId>org.osgi.service.component</artifactId>
+            <version>1.3.0</version>
+            <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>org.slf4j</groupId>
@@ -164,7 +153,7 @@
         <dependency>
             <groupId>org.apache.sling</groupId>
             <artifactId>org.apache.sling.commons.threads</artifactId>
-            <version>3.0.0</version>
+            <version>3.2.6</version>
             <scope>provided</scope>
         </dependency>
         <dependency>
@@ -182,12 +171,16 @@
         <dependency>
             <groupId>org.quartz-scheduler</groupId>
             <artifactId>quartz</artifactId>
-            <version>2.2.2</version>
+            <version>2.2.3</version>
         </dependency>
         <dependency>
             <groupId>junit</groupId>
             <artifactId>junit</artifactId>
-            <version>4.12</version>
+        </dependency>
+        <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-core</artifactId>
+            <version>1.10.19</version>
             <scope>test</scope>
         </dependency>
         <dependency>
@@ -209,10 +202,19 @@
             <scope>test</scope>
         </dependency>
         <dependency>
-            <groupId>org.mockito</groupId>
-            <artifactId>mockito-core</artifactId>
-            <version>1.9.0</version>
-            <scope>test</scope>
+        	<groupId>org.apache.sling</groupId>
+        	<artifactId>org.apache.sling.commons.metrics</artifactId>
+        	<version>1.2.0</version>
+        </dependency>
+        <dependency>
+        	<groupId>org.apache.sling</groupId>
+        	<artifactId>org.apache.sling.hc.core</artifactId>
+        	<version>1.0.6</version>
+        </dependency>
+        <dependency>
+        	<groupId>org.apache.sling</groupId>
+        	<artifactId>org.apache.sling.commons.osgi</artifactId>
+        	<version>2.1.0</version>
         </dependency>
     </dependencies>
 </project>

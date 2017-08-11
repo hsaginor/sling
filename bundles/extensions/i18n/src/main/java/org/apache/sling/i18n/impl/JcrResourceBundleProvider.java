@@ -30,6 +30,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Hashtable;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.MissingResourceException;
@@ -38,27 +39,28 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Semaphore;
 
-import org.apache.felix.scr.annotations.Component;
-import org.apache.felix.scr.annotations.Property;
-import org.apache.felix.scr.annotations.Reference;
-import org.apache.felix.scr.annotations.ReferenceCardinality;
-import org.apache.felix.scr.annotations.ReferencePolicy;
-import org.apache.felix.scr.annotations.Service;
-import org.apache.sling.api.SlingConstants;
 import org.apache.sling.api.resource.LoginException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.api.resource.ResourceResolverFactory;
 import org.apache.sling.api.resource.ValueMap;
-import org.apache.sling.commons.osgi.PropertiesUtil;
+import org.apache.sling.api.resource.observation.ExternalResourceChangeListener;
+import org.apache.sling.api.resource.observation.ResourceChange;
+import org.apache.sling.api.resource.observation.ResourceChangeListener;
 import org.apache.sling.commons.scheduler.ScheduleOptions;
 import org.apache.sling.commons.scheduler.Scheduler;
 import org.apache.sling.i18n.ResourceBundleProvider;
+import org.apache.sling.serviceusermapping.ServiceUserMapped;
 import org.osgi.framework.BundleContext;
+import org.osgi.framework.Constants;
 import org.osgi.framework.ServiceRegistration;
-import org.osgi.service.component.ComponentContext;
-import org.osgi.service.event.EventConstants;
-import org.osgi.service.event.EventHandler;
+import org.osgi.service.component.annotations.Activate;
+import org.osgi.service.component.annotations.Component;
+import org.osgi.service.component.annotations.Deactivate;
+import org.osgi.service.component.annotations.Reference;
+import org.osgi.service.metatype.annotations.AttributeDefinition;
+import org.osgi.service.metatype.annotations.Designate;
+import org.osgi.service.metatype.annotations.ObjectClassDefinition;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -68,29 +70,39 @@ import org.slf4j.LoggerFactory;
  * <code>ResourceBundle</code> instances from resources stored in the
  * repository.
  */
-@Component(immediate = true, metatype = true, label = "%provider.name", description = "%provider.description")
-@Service({ResourceBundleProvider.class, EventHandler.class})
-@Property(name=EventConstants.EVENT_TOPIC, value="org/apache/sling/api/resource/Resource/*", propertyPrivate=true)
-public class JcrResourceBundleProvider implements ResourceBundleProvider, EventHandler {
+@Component(service = {ResourceBundleProvider.class, ResourceChangeListener.class},
+    property = {
+            Constants.SERVICE_DESCRIPTION + "=I18n Resource Bundle Provider",
+            Constants.SERVICE_VENDOR + "=The Apache Software Foundation",
+            ResourceChangeListener.PATHS + "=/"
+    })
+@Designate(ocd = JcrResourceBundleProvider.Config.class)
+public class JcrResourceBundleProvider implements ResourceBundleProvider, ResourceChangeListener, ExternalResourceChangeListener {
 
-    private static final boolean DEFAULT_PRELOAD_BUNDLES = false;
+    @ObjectClassDefinition(name ="Apache Sling I18N ResourceBundle Provider",
+            description ="ResourceBundleProvider service which loads the messages "+
+                 "from the repository. If the user name field is left empty, the provider will "+
+                 "log into the repository as the administrative user. Otherwise the given user "+
+                 "name and password are used to access the repository. Failing to access the "+
+                 "repository, effectively disables the provider.")
+    public @interface Config {
 
-    private static final int DEFAULT_INVALIDATION_DELAY = 5000;
+        @AttributeDefinition(name = "Default Locale",
+            description = "The default locale to assume if none can be "+
+                 "resolved otherwise. This value must be in the form acceptable to the "+
+                 "java.util.Locale class.")
+        String locale_default() default "en";
 
-    @Property(value = "")
-    private static final String PROP_USER = "user";
+        @AttributeDefinition(name = "Preload Bundles",
+                description = "Whether or not to eagerly load the resource bundles "+
+                    "on bundle start or a cache invalidation.")
+        boolean preload_bundles() default false;
 
-    @Property(value = "")
-    private static final String PROP_PASS = "password";
-
-    @Property(value = "en")
-    private static final String PROP_DEFAULT_LOCALE = "locale.default";
-
-    @Property(boolValue = DEFAULT_PRELOAD_BUNDLES)
-    private static final String PROP_PRELOAD_BUNDLES = "preload.bundles";
-
-    @Property(longValue = DEFAULT_INVALIDATION_DELAY)
-    private static final String PROP_INVALIDATION_DELAY = "invalidation.delay";
+        @AttributeDefinition(name = "Invalidation Delay",
+                description = "In case of dictionary change events the cached "+
+                        "resource bundle becomes invalid after the given delay (in ms). ")
+        long invalidation_delay() default 5000;
+    }
 
     @Reference
     private Scheduler scheduler;
@@ -104,6 +116,9 @@ public class JcrResourceBundleProvider implements ResourceBundleProvider, EventH
     @Reference
     private ResourceResolverFactory resourceResolverFactory;
 
+    @Reference
+    private ServiceUserMapped serviceUserMapped;
+
     /**
      * The default Locale as configured with the <i>locale.default</i>
      * configuration property. This defaults to <code>Locale.ENGLISH</code> if
@@ -113,18 +128,17 @@ public class JcrResourceBundleProvider implements ResourceBundleProvider, EventH
 
     /**
      * The resource resolver used to access the resource bundles. This object is
-     * retrieved from the {@link #resourceResolverFactory} using the administrative
-     * session or the session acquired using the {@link #repoCredentials}.
+     * retrieved from the {@link #resourceResolverFactory} using the service user session.
      */
     private ResourceResolver resourceResolver;
 
     /**
-     * Map of cached resource bundles indexed by a key combined of the base name 
+     * Map of cached resource bundles indexed by a key combined of the base name
      * and <code>Locale</code> used to load and identify the <code>ResourceBundle</code>.
      */
-    private final ConcurrentHashMap<Key, JcrResourceBundle> resourceBundleCache = new ConcurrentHashMap<Key, JcrResourceBundle>();
+    private final ConcurrentHashMap<Key, JcrResourceBundle> resourceBundleCache = new ConcurrentHashMap<>();
 
-    private final ConcurrentHashMap<Key, Semaphore> loadingGuards = new ConcurrentHashMap<Key, Semaphore>();
+    private final ConcurrentHashMap<Key, Semaphore> loadingGuards = new ConcurrentHashMap<>();
 
     /**
      * paths from which JCR resource bundles have been loaded
@@ -142,7 +156,7 @@ public class JcrResourceBundleProvider implements ResourceBundleProvider, EventH
     /**
      * Each ResourceBundle is registered as a service. Each registration is stored in this map with the locale & base name used as a key.
      */
-    private Map<Key, ServiceRegistration> bundleServiceRegistrations;
+    private final Map<Key, ServiceRegistration<ResourceBundle>> bundleServiceRegistrations = new HashMap<>();
 
     private boolean preloadBundles;
 
@@ -188,22 +202,22 @@ public class JcrResourceBundleProvider implements ResourceBundleProvider, EventH
     // ---------- EventHandler ------------------------------------------------
 
     @Override
-    public void handleEvent(final org.osgi.service.event.Event event) {
-        final String path = (String) event.getProperty(SlingConstants.PROPERTY_PATH);
-        if (path != null) {
-            log.trace("handleEvent: Detecting event {} for path '{}'", event, path);
+    public void onChange(List<ResourceChange> changes) {
+        boolean refreshed = false;
+        for(final ResourceChange change : changes) {
+            log.trace("handleEvent: Detecting event {} for path '{}'", change.getType(), change.getPath());
 
             // if this change was on languageRootPath level this might change basename and locale as well, therefore
             // invalidate everything
-            if (languageRootPaths.contains(path)) {
+            if (languageRootPaths.contains(change.getPath())) {
                 log.debug(
                         "handleEvent: Detected change of cached language root '{}', removing all cached ResourceBundles",
-                        path);
+                        change.getPath());
                 scheduleReloadBundles(true);
             } else {
                 // if it is only a change below a root path, only messages of one resource bundle can be affected!
                 for (final String root : languageRootPaths) {
-                    if (path.startsWith(root)) {
+                    if (change.getPath().startsWith(root)) {
                         // figure out which JcrResourceBundle from the cached ones is affected
                         for (JcrResourceBundle bundle : resourceBundleCache.values()) {
                             if (bundle.getLanguageRootPaths().contains(root)) {
@@ -219,46 +233,45 @@ public class JcrResourceBundleProvider implements ResourceBundleProvider, EventH
                     }
                 }
                 // may be a completely new dictionary
-                if (isDictionaryResource(path, event)) {
+                if (!refreshed) {
+                    // refresh at most once per onChange()
+                    resourceResolver.refresh();
+                    refreshed = true;
+                }
+                if (isDictionaryResource(change)) {
                     scheduleReloadBundles(true);
                 }
             }
         }
     }
 
-    private boolean isDictionaryResource(final String path, final org.osgi.service.event.Event event) {
+    private boolean isDictionaryResource(final ResourceChange change) {
         // language node changes happen quite frequently (https://issues.apache.org/jira/browse/SLING-2881)
-        // therefore only consider changes either for sling:MessageEntry's 
+        // therefore only consider changes either for sling:MessageEntry's
         // or for JSON dictionaries
-        String resourceType = (String) event.getProperty(SlingConstants.PROPERTY_RESOURCE_TYPE);
-        if (resourceType == null) {
+        // get valuemap
+        final Resource resource = resourceResolver.getResource(change.getPath());
+        if (resource == null) {
+            log.trace("Could not get resource for '{}' for event {}", change.getPath(), change.getType());
             return false;
         }
-        if (JcrResourceBundle.RT_MESSAGE_ENTRY.equals(resourceType)) {
-            log.debug("Found new dictionary entry: New {} resource in '{}' detected", JcrResourceBundle.RT_MESSAGE_ENTRY, path);
+        if ( resource.getResourceType() == null ) {
+            return false;
+        }
+        if (resource.isResourceType(JcrResourceBundle.RT_MESSAGE_ENTRY)) {
+            log.debug("Found new dictionary entry: New {} resource in '{}' detected", JcrResourceBundle.RT_MESSAGE_ENTRY, change.getPath());
             return true;
         }
-        // get valuemap
-        resourceResolver.refresh();
-        Resource resource = resourceResolver.getResource(path);
-        if (resource == null) {
-            log.trace("Could not resource for '{}' for event {}", path, event);
-            return false;
-        }
-        ValueMap valueMap = resource.adaptTo(ValueMap.class);
-        if (valueMap == null) {
-            log.trace("Could not get value map for '{}' for event {}", path, event);
-            return false;
-        }
+        final ValueMap valueMap = resource.getValueMap();
         // FIXME: derivatives from mix:Message are not detected
         if (hasMixin(valueMap, JcrResourceBundle.MIXIN_MESSAGE)) {
-            log.debug("Found new dictionary entry: New {} resource in '{}' detected", JcrResourceBundle.MIXIN_MESSAGE, path);
+            log.debug("Found new dictionary entry: New {} resource in '{}' detected", JcrResourceBundle.MIXIN_MESSAGE, change.getPath());
             return true;
         }
-        if (path.endsWith(".json")) {
+        if (change.getPath().endsWith(".json")) {
             // check for mixin
             if (hasMixin(valueMap, JcrResourceBundle.MIXIN_LANGUAGE)) {
-                log.debug("Found new dictionary: New {} resource in '{}' detected", JcrResourceBundle.MIXIN_LANGUAGE, path);
+                log.debug("Found new dictionary: New {} resource in '{}' detected", JcrResourceBundle.MIXIN_LANGUAGE, change.getPath());
                 return true;
             }
         }
@@ -307,7 +320,7 @@ public class JcrResourceBundleProvider implements ResourceBundleProvider, EventH
         String baseName = bundle.getBaseName();
         Locale locale = bundle.getLocale();
         final Key key = new Key(baseName, locale);
-        
+
         // defer this job
         ScheduleOptions options = scheduler.AT(new Date(System.currentTimeMillis() + invalidationDelay));
         final String jobName = "JcrResourceBundleProvider: reload bundle with key " + key.toString();
@@ -316,9 +329,7 @@ public class JcrResourceBundleProvider implements ResourceBundleProvider, EventH
         scheduler.schedule(new Runnable() {
             @Override
             public void run() {
-                synchronized(JcrResourceBundleProvider.this) {
-                    reloadBundle(key);
-                }
+                reloadBundle(key);
                 scheduledJobNames.remove(jobName);
             }
         }, options);
@@ -329,14 +340,17 @@ public class JcrResourceBundleProvider implements ResourceBundleProvider, EventH
         resourceBundleCache.remove(key);
         log.info("Reloading resource bundle for {}", key);
         // unregister bundle
-        ServiceRegistration serviceRegistration = bundleServiceRegistrations.remove(key);
+        ServiceRegistration<ResourceBundle> serviceRegistration = null;
+        synchronized (this) {
+            serviceRegistration = bundleServiceRegistrations.remove(key);
+        }
         if (serviceRegistration != null) {
             serviceRegistration.unregister();
         } else {
             log.warn("Could not find resource bundle service for {}", key);
         }
 
-        Collection<JcrResourceBundle> dependentBundles = new ArrayList<JcrResourceBundle>();
+        Collection<JcrResourceBundle> dependentBundles = new ArrayList<>();
         // this bundle might be a parent of a cached bundle -> invalidate those dependent bundles as well
         for (JcrResourceBundle bundle : resourceBundleCache.values()) {
             if (bundle.getParent() instanceof JcrResourceBundle) {
@@ -363,42 +377,24 @@ public class JcrResourceBundleProvider implements ResourceBundleProvider, EventH
     /**
      * Activates and configures this component with the repository access
      * details and the default locale to use
-     * @throws LoginException 
+     * @throws LoginException
      */
-    protected void activate(ComponentContext context) throws LoginException {
-        Dictionary<?, ?> props = context.getProperties();
-
-        Map<String, Object> repoCredentials;
-        String user = PropertiesUtil.toString(props.get(PROP_USER), null);
-        if (user == null || user.length() == 0) {
-            repoCredentials = null;
-        } else {
-            String pass = PropertiesUtil.toString(props.get(PROP_PASS), null);
-            char[] pwd = (pass == null) ? new char[0] : pass.toCharArray();
-            repoCredentials = new HashMap<String, Object>();
-            repoCredentials.put(ResourceResolverFactory.USER, user);
-            repoCredentials.put(ResourceResolverFactory.PASSWORD, pwd);
-        }
-
-        String localeString = PropertiesUtil.toString(props.get(PROP_DEFAULT_LOCALE),
-            null);
+    @Activate
+    protected void activate(final BundleContext context, final Config config) throws LoginException {
+        String localeString = config.locale_default();
         this.defaultLocale = toLocale(localeString);
-        this.preloadBundles = PropertiesUtil.toBoolean(props.get(PROP_PRELOAD_BUNDLES), DEFAULT_PRELOAD_BUNDLES);
+        this.preloadBundles = config.preload_bundles();
 
-        this.bundleContext = context.getBundleContext();
-        this.bundleServiceRegistrations = new HashMap<Key, ServiceRegistration>();
-        invalidationDelay = PropertiesUtil.toLong(props.get(PROP_INVALIDATION_DELAY), DEFAULT_INVALIDATION_DELAY);
+        this.bundleContext = context;
+        invalidationDelay = config.invalidation_delay();
         if (this.resourceResolverFactory != null) { // this is only null during test execution!
-            if (repoCredentials == null) {
-                resourceResolver = resourceResolverFactory.getAdministrativeResourceResolver(null);
-            } else {
-                resourceResolver = resourceResolverFactory.getResourceResolver(repoCredentials);
-            }
+            resourceResolver = resourceResolverFactory.getServiceResourceResolver(null);
             scheduleReloadBundles(false);
         }
 
     }
 
+    @Deactivate
     protected void deactivate() {
         clearCache();
         resourceResolver.close();
@@ -447,12 +443,12 @@ public class JcrResourceBundleProvider implements ResourceBundleProvider, EventH
     }
 
     private void registerResourceBundle(Key key, JcrResourceBundle resourceBundle) {
-        Dictionary<Object, Object> serviceProps = new Hashtable<Object, Object>();
+        Dictionary<String, Object> serviceProps = new Hashtable<>();
         if (key.baseName != null) {
             serviceProps.put("baseName", key.baseName);
         }
         serviceProps.put("locale", key.locale.toString());
-        ServiceRegistration serviceReg = bundleContext.registerService(ResourceBundle.class.getName(),
+        ServiceRegistration<ResourceBundle> serviceReg = bundleContext.registerService(ResourceBundle.class,
                 resourceBundle, serviceProps);
         synchronized (this) {
             bundleServiceRegistrations.put(key, serviceReg);
@@ -460,7 +456,8 @@ public class JcrResourceBundleProvider implements ResourceBundleProvider, EventH
 
         // register language root paths
         final Set<String> languageRoots = resourceBundle.getLanguageRootPaths();
-        languageRootPaths.addAll(languageRoots);
+        this.languageRootPaths.addAll(languageRoots);
+
         log.debug("registerResourceBundle({}, ...): added service registration and language roots {}", key, languageRoots);
         log.info("Currently loaded dictionaries across all locales: {}", languageRootPaths);
     }
@@ -536,7 +533,7 @@ public class JcrResourceBundleProvider implements ResourceBundleProvider, EventH
         languageRootPaths.clear();
 
         synchronized (this) {
-            for (ServiceRegistration serviceReg : bundleServiceRegistrations.values()) {
+            for (ServiceRegistration<ResourceBundle> serviceReg : bundleServiceRegistrations.values()) {
                 serviceReg.unregister();
             }
             bundleServiceRegistrations.clear();
@@ -548,7 +545,7 @@ public class JcrResourceBundleProvider implements ResourceBundleProvider, EventH
             resourceResolver.refresh();
             Iterator<Map<String, Object>> bundles = resourceResolver.queryResources(
                     JcrResourceBundle.QUERY_LANGUAGE_ROOTS, "xpath");
-            Set<Key> usedKeys = new HashSet<Key>();
+            Set<Key> usedKeys = new HashSet<>();
             while (bundles.hasNext()) {
                 Map<String,Object> bundle = bundles.next();
                 if (bundle.containsKey(PROP_LANGUAGE)) {
@@ -567,65 +564,72 @@ public class JcrResourceBundleProvider implements ResourceBundleProvider, EventH
     }
 
     /**
-     * Converts the given <code>localeString</code> to valid
-     * <code>java.util.Locale</code>. If the locale string is
-     * <code>null</code> or empty, the platform default locale is assumed. If
+     * Converts the given <code>localeString</code> to a valid
+     * <code>java.util.Locale</code>. It must either be in the format specified by
+     * {@link Locale#toString()} or in <a href="https://tools.ietf.org/html/bcp47">BCP 47 format</a>
+     * If the locale string is <code>null</code> or empty, the platform default locale is assumed. If
      * the localeString matches any locale available per default on the
      * platform, that platform locale is returned. Otherwise the localeString is
      * parsed and the language and country parts are compared against the
      * languages and countries provided by the platform. Any unsupported
      * language or country is replaced by the platform default language and
      * country.
+     * @param localeString the locale as string
+     * @return the {@link Locale} being generated from the {@code localeString}
      */
-    private Locale toLocale(String localeString) {
+    static Locale toLocale(String localeString) {
         if (localeString == null || localeString.length() == 0) {
             return Locale.getDefault();
         }
+        // support BCP 47 compliant strings as well (using a different separator "-" instead of "_")
+        localeString = localeString.replaceAll("-", "_");
 
         // check language and country
-        String[] parts = localeString.split("_");
+        final String[] parts = localeString.split("_");
         if (parts.length == 0) {
             return Locale.getDefault();
         }
 
         // at least language is available
         String lang = parts[0];
+        boolean isValidLanguageCode = false;
         String[] langs = Locale.getISOLanguages();
         for (int i = 0; i < langs.length; i++) {
-            if (langs[i].equals(lang)) {
-                lang = null; // signal ok
+            if (langs[i].equalsIgnoreCase(lang)) {
+                isValidLanguageCode = true;
                 break;
             }
         }
-        if (lang != null) {
-            parts[0] = Locale.getDefault().getLanguage();
+        if (!isValidLanguageCode) {
+            lang = Locale.getDefault().getLanguage();
         }
 
         // only language
         if (parts.length == 1) {
-            return new Locale(parts[0]);
+            return new Locale(lang);
         }
 
         // country is also available
         String country = parts[1];
+        boolean isValidCountryCode = false;
         String[] countries = Locale.getISOCountries();
         for (int i = 0; i < countries.length; i++) {
-            if (countries[i].equals(lang)) {
-                country = null; // signal ok
+            if (countries[i].equalsIgnoreCase(country)) {
+                isValidCountryCode = true; // signal ok
                 break;
             }
         }
-        if (country != null) {
-            parts[1] = Locale.getDefault().getCountry();
+        if (!isValidCountryCode) {
+            country = Locale.getDefault().getCountry();
         }
 
         // language and country
         if (parts.length == 2) {
-            return new Locale(parts[0], parts[1]);
+            return new Locale(lang, country);
         }
 
         // language, country and variant
-        return new Locale(parts[0], parts[1], parts[2]);
+        return new Locale(lang, country, parts[2]);
     }
 
     //---------- internal class

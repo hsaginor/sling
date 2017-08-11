@@ -23,7 +23,7 @@ import java.util.List;
 
 import aQute.bnd.annotation.ConsumerType;
 import org.apache.sling.distribution.common.DistributionException;
-import org.apache.sling.distribution.serialization.DistributionPackage;
+import org.apache.sling.distribution.packaging.DistributionPackage;
 import org.apache.sling.distribution.queue.DistributionQueueItemStatus;
 import org.apache.sling.distribution.queue.DistributionQueueProvider;
 
@@ -50,7 +50,6 @@ public interface DistributionQueueDispatchingStrategy {
      * @throws DistributionException if any internal error happens during distribution
      */
     Iterable<DistributionQueueItemStatus> add(@Nonnull DistributionPackage distributionPackage, @Nonnull DistributionQueueProvider queueProvider) throws DistributionException;
-
 
     /**
      * Returns the queue names available for this strategy.

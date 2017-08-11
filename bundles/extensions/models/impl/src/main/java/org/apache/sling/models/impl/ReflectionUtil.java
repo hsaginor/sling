@@ -28,7 +28,7 @@ import java.util.List;
 
 import javax.inject.Inject;
 
-import org.apache.commons.lang.ClassUtils;
+import org.apache.commons.lang3.ClassUtils;
 import org.apache.sling.models.spi.injectorspecific.InjectAnnotation;
 
 /**
@@ -41,7 +41,7 @@ public final class ReflectionUtil {
     }
 
     public static List<Field> collectInjectableFields(Class<?> type) {
-        List<Field> result = new ArrayList<Field>();
+        List<Field> result = new ArrayList<>();
         while (type != null) {
             Field[] fields = type.getDeclaredFields();
             addAnnotated(fields, result);
@@ -51,13 +51,23 @@ public final class ReflectionUtil {
     }
 
     public static List<Method> collectInjectableMethods(Class<?> type) {
-        List<Method> result = new ArrayList<Method>();
+        List<Method> result = new ArrayList<>();
         while (type != null) {
             Method[] methods = type.getDeclaredMethods();
             addAnnotated(methods, result);
+            addAnnotatedMethodsFromInterfaces(type, result);
             type = type.getSuperclass();
         }
         return result;
+
+    }
+
+    private static void addAnnotatedMethodsFromInterfaces(Class<?> type, List<Method> result) {
+        for (Class<?> iface : type.getInterfaces()) {
+            Method[] methods = iface.getDeclaredMethods();
+            addAnnotated(methods, result);
+            addAnnotatedMethodsFromInterfaces(iface, result);
+        }
     }
 
     public static <T extends AnnotatedElement> void addAnnotated(T[] elements, List<T> set) {
@@ -77,7 +87,7 @@ public final class ReflectionUtil {
     /**
      * Get an annotation from either the element itself or on any of the
      * element's annotations (meta-annotations).
-     * 
+     *
      * @param element the element
      * @param annotationClass the annotation class
      * @return the found annotation or null

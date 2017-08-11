@@ -23,33 +23,27 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
 import org.apache.commons.io.IOUtils;
-import org.apache.commons.lang.StringUtils;
-import org.apache.felix.scr.annotations.Component;
-import org.apache.felix.scr.annotations.Properties;
-import org.apache.felix.scr.annotations.Property;
-import org.apache.felix.scr.annotations.Reference;
-import org.apache.felix.scr.annotations.Service;
 import org.apache.felix.webconsole.AbstractWebConsolePlugin;
 import org.apache.felix.webconsole.WebConsoleConstants;
-import org.apache.sling.api.SlingHttpServletRequest;
-import org.apache.sling.api.SlingHttpServletResponse;
 import org.apache.sling.scripting.api.ScriptCache;
 import org.osgi.framework.Constants;
+import org.osgi.service.component.annotations.Component;
+import org.osgi.service.component.annotations.Reference;
 
-@Component
-@Service
-@Properties({
-        @Property(name = Constants.SERVICE_DESCRIPTION, value = "Script Cache"),
-        @Property(name = Constants.SERVICE_VENDOR, value = "The Apache Software Foundation"),
-        @Property(name = WebConsoleConstants.PLUGIN_LABEL, value = ScriptCacheConsolePlugin.CONSOLE_LABEL),
-        @Property(name = WebConsoleConstants.PLUGIN_TITLE, value = ScriptCacheConsolePlugin.CONSOLE_TITLE),
-        @Property(name = "felix.webconsole.category", value = "Sling")
-})
+@Component(
+    property = {
+        Constants.SERVICE_DESCRIPTION + "=Script Cache",
+        Constants.SERVICE_VENDOR + "=The Apache Software Foundation",
+        WebConsoleConstants.PLUGIN_LABEL + "=" + ScriptCacheConsolePlugin.CONSOLE_LABEL,
+        WebConsoleConstants.PLUGIN_TITLE + "=" + ScriptCacheConsolePlugin.CONSOLE_TITLE,
+        "felix.webconsole.category=sling"
+    })
 public class ScriptCacheConsolePlugin extends AbstractWebConsolePlugin {
 
     public static final String CONSOLE_LABEL = "scriptcache";
@@ -82,7 +76,7 @@ public class ScriptCacheConsolePlugin extends AbstractWebConsolePlugin {
             throws ServletException, IOException {
         if (scriptCache instanceof ScriptCacheImpl) {
             ScriptCacheImpl scriptCacheImpl = (ScriptCacheImpl) scriptCache;
-            List<String> scripts = new ArrayList<String>(scriptCacheImpl.getCachedScripts());
+            List<String> scripts = new ArrayList<>(scriptCacheImpl.getCachedScripts());
             StringBuilder sb = new StringBuilder();
             sb.append("<script type='text/javascript' src='").append(RESOURCES).append("/").append(SCRIPTCACHE_JS).append("'></script>");
             sb.append("<div id='cached-scripts' class='ui-widget statline'>");
@@ -120,7 +114,7 @@ public class ScriptCacheConsolePlugin extends AbstractWebConsolePlugin {
     @Override
     protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
         String script = req.getParameter(POST_SCRIPT);
-        if (StringUtils.isNotEmpty(script)) {
+        if (script != null && !script.isEmpty()) {
             if ("all".equals(script)) {
                 scriptCache.clear();
                 renderContent(req, resp);

@@ -42,6 +42,7 @@ import java.util.ResourceBundle;
 
 import javax.servlet.AsyncContext;
 import javax.servlet.DispatcherType;
+import javax.servlet.ReadListener;
 import javax.servlet.RequestDispatcher;
 import javax.servlet.ServletContext;
 import javax.servlet.ServletException;
@@ -51,6 +52,7 @@ import javax.servlet.ServletResponse;
 import javax.servlet.http.Cookie;
 import javax.servlet.http.HttpServletResponse;
 import javax.servlet.http.HttpSession;
+import javax.servlet.http.HttpUpgradeHandler;
 import javax.servlet.http.Part;
 
 import org.apache.commons.collections.IteratorUtils;
@@ -66,8 +68,7 @@ import org.apache.sling.api.request.RequestProgressTracker;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.api.servlets.HttpConstants;
-
-import aQute.bnd.annotation.ConsumerType;
+import org.osgi.annotation.versioning.ConsumerType;
 
 /**
  * Mock {@link SlingHttpServletRequest} implementation.
@@ -81,11 +82,14 @@ public class MockSlingHttpServletRequest extends SlingAdaptable implements Sling
     private Map<String, String[]> parameterMap = new LinkedHashMap<String, String[]>();
     private HttpSession session;
     private Resource resource;
+    private String authType;
     private String contextPath;
     private String queryString;
     private String scheme = "http";
     private String serverName = "localhost";
     private int serverPort = 80;
+    private String servletPath = StringUtils.EMPTY;
+    private String pathInfo = null;
     private String method = HttpConstants.METHOD_GET;
     private final HeaderSupport headerSupport = new HeaderSupport();
     private final CookieSupport cookieSupport = new CookieSupport();
@@ -545,6 +549,18 @@ public class MockSlingHttpServletRequest extends SlingAdaptable implements Sling
             public int read() throws IOException {
                 return is.read();
             }
+            @Override
+            public boolean isReady() {
+                return true;
+            }
+            @Override
+            public boolean isFinished() {
+                throw new UnsupportedOperationException();
+            }
+            @Override
+            public void setReadListener(ReadListener readListener) {
+                throw new UnsupportedOperationException();
+            }
         };  
     }
 
@@ -632,7 +648,97 @@ public class MockSlingHttpServletRequest extends SlingAdaptable implements Sling
         this.remotePort = remotePort;
     }
 
+    @Override
+    public String getServletPath() {
+        return this.servletPath;
+    }
+
+    public void setServletPath(String servletPath) {
+        this.servletPath = servletPath;
+    }
+
+    @Override
+    public String getPathInfo() {
+        if (this.pathInfo != null) {
+            return this.pathInfo; 
+        }
+        
+        RequestPathInfo requestPathInfo = this.getRequestPathInfo();
+
+        if (StringUtils.isEmpty(requestPathInfo.getResourcePath())) {
+            return null;
+        }
+
+        StringBuilder pathInfo = new StringBuilder();
+
+        pathInfo.append(requestPathInfo.getResourcePath());
+
+        if (StringUtils.isNotEmpty(requestPathInfo.getSelectorString())) {
+            pathInfo.append('.');
+            pathInfo.append(requestPathInfo.getSelectorString());
+        }
+
+        if (StringUtils.isNotEmpty(requestPathInfo.getExtension())) {
+            pathInfo.append('.');
+            pathInfo.append(requestPathInfo.getExtension());
+        }
+
+        if (StringUtils.isNotEmpty(requestPathInfo.getSuffix())) {
+            pathInfo.append(requestPathInfo.getSuffix());
+        }
+
+        return pathInfo.toString();
+    }
     
+    public void setPathInfo(String pathInfo) {
+        this.pathInfo = pathInfo;
+    }
+
+    @Override
+    public String getRequestURI() {
+        StringBuilder requestUri = new StringBuilder();
+
+        if (StringUtils.isNotEmpty(this.getServletPath())) {
+            requestUri.append(this.getServletPath());
+        }
+
+        if (StringUtils.isNotEmpty(this.getPathInfo())) {
+            requestUri.append(this.getPathInfo());
+        }
+
+        if (StringUtils.isEmpty(requestUri)) {
+            return "/";
+        } else {
+            return requestUri.toString();
+        }
+    }
+
+    @Override
+    public StringBuffer getRequestURL() {
+        StringBuffer requestUrl = new StringBuffer();
+
+        requestUrl.append(this.getScheme());
+        requestUrl.append("://");
+        requestUrl.append(getServerName());
+        if ((StringUtils.equals(this.getScheme(), "http") && this.getServerPort() != 80) ||
+                (StringUtils.equals(this.getScheme(), "https") && this.getServerPort() != 443)) {
+            requestUrl.append(':');
+            requestUrl.append(getServerPort());
+        }
+        requestUrl.append(getRequestURI());
+
+        return requestUrl;
+    }
+
+    @Override
+    public String getAuthType() {
+        return this.authType;
+    }
+
+    public void setAuthType(String authType) {
+        this.authType = authType;
+    }
+
     // --- unsupported operations ---
 
     @Override
@@ -651,37 +757,12 @@ public class MockSlingHttpServletRequest extends SlingAdaptable implements Sling
     }
 
     @Override
-    public String getAuthType() {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public String getPathInfo() {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
     public String getPathTranslated() {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public String getRequestURI() {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public StringBuffer getRequestURL() {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
     public String getRequestedSessionId() {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public String getServletPath() {
         throw new UnsupportedOperationException();
     }
 
@@ -807,6 +888,21 @@ public class MockSlingHttpServletRequest extends SlingAdaptable implements Sling
 
     @Override
     public DispatcherType getDispatcherType() {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public String changeSessionId() {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public <T extends HttpUpgradeHandler> T upgrade(Class<T> handlerClass) throws IOException, ServletException {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public long getContentLengthLong() {
         throw new UnsupportedOperationException();
     }
 

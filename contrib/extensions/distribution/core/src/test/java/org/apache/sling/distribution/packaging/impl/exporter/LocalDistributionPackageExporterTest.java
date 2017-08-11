@@ -24,10 +24,11 @@ import java.util.List;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.distribution.DistributionRequest;
 import org.apache.sling.distribution.DistributionRequestType;
+import org.apache.sling.distribution.DistributionResponse;
 import org.apache.sling.distribution.SimpleDistributionRequest;
 import org.apache.sling.distribution.packaging.DistributionPackageProcessor;
-import org.apache.sling.distribution.serialization.DistributionPackage;
-import org.apache.sling.distribution.serialization.DistributionPackageBuilder;
+import org.apache.sling.distribution.packaging.DistributionPackage;
+import org.apache.sling.distribution.packaging.DistributionPackageBuilder;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
@@ -42,7 +43,7 @@ import static org.mockito.Mockito.when;
 public class LocalDistributionPackageExporterTest {
 
     @Test
-    public void testDummyExport() throws Exception {
+    public void testExport() throws Exception {
         DistributionPackageBuilder packageBuilder = mock(DistributionPackageBuilder.class);
         when(packageBuilder.createPackage(any(ResourceResolver.class), any(DistributionRequest.class))).thenReturn(mock(DistributionPackage.class));
         LocalDistributionPackageExporter localdistributionPackageExporter = new LocalDistributionPackageExporter(packageBuilder);
@@ -54,8 +55,33 @@ public class LocalDistributionPackageExporterTest {
             public void process(DistributionPackage distributionPackage) {
                 distributionPackages.add(distributionPackage);
             }
+
+            @Override
+            public List<DistributionResponse> getAllResponses() {
+                return null;
+            }
+
+            @Override
+            public int getPackagesCount() {
+                return 0;
+            }
+
+            @Override
+            public long getPackagesSize() {
+                return 0;
+            }
         });
         assertNotNull(distributionPackages);
         assertEquals(1, distributionPackages.size());
+    }
+
+    @Test
+    public void testGetPackage() throws Exception {
+        DistributionPackageBuilder packageBuilder = mock(DistributionPackageBuilder.class);
+        when(packageBuilder.getPackage(any(ResourceResolver.class), any(String.class))).thenReturn(mock(DistributionPackage.class));
+        LocalDistributionPackageExporter localdistributionPackageExporter = new LocalDistributionPackageExporter(packageBuilder);
+        ResourceResolver resourceResolver = mock(ResourceResolver.class);
+        DistributionPackage distributionPackage = localdistributionPackageExporter.getPackage(resourceResolver, "123");
+        assertNotNull(distributionPackage);
     }
 }

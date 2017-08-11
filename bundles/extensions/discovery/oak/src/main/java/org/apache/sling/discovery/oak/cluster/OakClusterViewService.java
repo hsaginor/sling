@@ -73,13 +73,13 @@ public class OakClusterViewService implements ClusterViewService {
 
     @Reference
     private Config config;
-    
+
     @Reference
     private IdMapService idMapService;
-    
+
     /** the last sequence number read from the oak discovery-lite descriptor **/
     private long lastSeqNum = -1;
-    
+
     public static OakClusterViewService testConstructor(SlingSettingsService settingsService,
             ResourceResolverFactory resourceResolverFactory,
             IdMapService idMapService,
@@ -91,7 +91,8 @@ public class OakClusterViewService implements ClusterViewService {
         service.idMapService = idMapService;
         return service;
     }
-    
+
+    @Override
     public String getSlingId() {
     	if (settingsService==null) {
     		return null;
@@ -100,15 +101,16 @@ public class OakClusterViewService implements ClusterViewService {
     }
 
     protected ResourceResolver getResourceResolver() throws LoginException {
-        return resourceResolverFactory.getAdministrativeResourceResolver(null);
+        return resourceResolverFactory.getServiceResourceResolver(null);
     }
 
+    @Override
     public LocalClusterView getLocalClusterView() throws UndefinedClusterViewException {
         logger.trace("getLocalClusterView: start");
         ResourceResolver resourceResolver = null;
         try{
             resourceResolver = getResourceResolver();
-            DiscoveryLiteDescriptor descriptor = 
+            DiscoveryLiteDescriptor descriptor =
                     DiscoveryLiteDescriptor.getDescriptorFrom(resourceResolver);
             if (lastSeqNum!=descriptor.getSeqNum()) {
                 logger.info("getLocalClusterView: sequence number change detected - clearing idmap cache");
@@ -120,7 +122,11 @@ public class OakClusterViewService implements ClusterViewService {
             logger.info("getLocalClusterView: undefined clusterView: "+e.getReason()+" - "+e.getMessage());
             throw e;
         } catch (Exception e) {
-            logger.error("getLocalClusterView: repository exception: "+e, e);
+            if (e.getMessage() != null && e.getMessage().contains("No Descriptor value available")) {
+                logger.warn("getLocalClusterView: repository exception: "+e);
+            } else {
+                logger.error("getLocalClusterView: repository exception: "+e, e);
+            }
             throw new UndefinedClusterViewException(Reason.REPOSITORY_EXCEPTION, "Exception while processing descriptor: "+e);
         } finally {
             logger.trace("getLocalClusterView: end");
@@ -159,7 +165,7 @@ public class OakClusterViewService implements ClusterViewService {
         for (Integer integer : activeIds) {
             activeIdsList.add(integer);
         }
-        
+
         // step 1: sort activeIds by their leaderElectionId
         //   serves two purposes: pos[0] is then leader
         //   and the rest are properly sorted within the cluster
@@ -173,9 +179,23 @@ public class OakClusterViewService implements ClusterViewService {
             }
             String leaderElectionId = getLeaderElectionId(resourceResolver,
                     slingId);
+            // SLING-6924 : leaderElectionId can be null here
+            // this means that another instance is just starting up, has already
+            // created its oak lease, thus is already visible from an oak discover-lite
+            // point of view - but upper level code here in discovery.oak has not yet
+            // set the leaderElectionId. This is rare but valid case
+            if (leaderElectionId == null) {
+                // then at this stage the clusterView is not yet established
+                // in a few moments it will but at this point not.
+                // so falling back to treating this as NO_ESTABLISHED_VIEW
+                // and with the heartbeat interval this situation will
+                // resolve itself upon one of the next pings
+                throw new UndefinedClusterViewException(Reason.NO_ESTABLISHED_VIEW,
+                        "no leaderElectionId available yet for slingId="+slingId);
+            }
             leaderElectionIds.put(id, leaderElectionId);
         }
-        
+
         Collections.sort(activeIdsList, new Comparator<Integer>() {
 
             @Override
@@ -184,7 +204,7 @@ public class OakClusterViewService implements ClusterViewService {
                         .compareTo(leaderElectionIds.get(arg1));
             }
         });
-        
+
         for(int i=0; i<activeIdsList.size(); i++) {
             int id = activeIdsList.get(i);
             boolean isLeader = i==0; // thx to sorting above [0] is leader indeed
@@ -208,7 +228,7 @@ public class OakClusterViewService implements ClusterViewService {
                     + "This is normal at startup. At other times is pseudo-network-partitioning is an indicator for repository/network-delays or clocks-out-of-sync (SLING-3432). "
                     + "(increasing the heartbeatTimeout can help as a workaround too) "
                     + "The local instance will stay in TOPOLOGY_CHANGING or pre _INIT mode until a new vote was successful.");
-            throw new UndefinedClusterViewException(Reason.ISOLATED_FROM_TOPOLOGY, 
+            throw new UndefinedClusterViewException(Reason.ISOLATED_FROM_TOPOLOGY,
                     "established view does not include local instance - isolated");
         }
     }
@@ -287,12 +307,23 @@ public class OakClusterViewService implements ClusterViewService {
             throw new IllegalStateException("slingId must not be null");
         }
         final String myClusterNodePath = config.getClusterInstancesPath()+"/"+slingId;
-        ValueMap resourceMap = resourceResolver.getResource(myClusterNodePath)
-                .adaptTo(ValueMap.class);
+        // SLING-6924 case 1 : /var/discovery/oak/clusterInstances/<slingId> can be non existant == null
+        final Resource myClusterNode = resourceResolver.getResource(myClusterNodePath);
+        if (myClusterNode == null) {
+            // SLING-6924 : return null case 1
+            return null;
+        }
+        ValueMap resourceMap = myClusterNode.adaptTo(ValueMap.class);
+        // SLING-6924 case 2 : /var/discovery/oak/clusterInstances/<slingId> can exist BUT leaderElectionId not yet set
+        //    namely the "leaderElectionId" is only written when resetLeaderElectionId() is called - which happens
+        //    on OakViewChecker.activate (or when isolated) - and this activate *can* happen after properties
+        //    or announcements have been written - those end up below /var/discovery/oak/clusterInstances/<slingId>/
         String result = resourceMap.get("leaderElectionId", String.class);
+        
+        // SLING-6924 : return null case 2 (if leaderElectionId is indeed null, that is)
         return result;
     }
-    
+
     private Map<String, String> readProperties(String slingId, ResourceResolver resourceResolver) {
         Resource res = resourceResolver.getResource(
                         config.getClusterInstancesPath() + "/"

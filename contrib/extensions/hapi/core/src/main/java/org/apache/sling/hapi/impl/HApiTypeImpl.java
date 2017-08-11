@@ -23,7 +23,10 @@ import org.apache.sling.hapi.HApiType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.*;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
 
 /**
  * {@inheritDoc}
@@ -165,5 +168,10 @@ public class HApiTypeImpl implements HApiType {
 
     public void setProperties(Map<String, HApiProperty> properties) {
         this.properties = properties;
+    }
+
+    @Override
+    public String toString() {
+        return this.getName() + "(" + this.getPath() + "): Properties: " + this.getProperties();
     }
 }

@@ -19,34 +19,28 @@
 
 package org.apache.sling.distribution.transport.impl;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.net.URI;
-import java.net.URISyntaxException;
-import java.util.Map;
-
-import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
 import org.apache.http.client.fluent.Executor;
 import org.apache.http.client.fluent.Request;
 import org.apache.http.client.utils.URIBuilder;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.apache.http.protocol.HTTP;
 
-public class HttpTransportUtils {
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.URI;
+import java.net.URISyntaxException;
 
-    private static final Logger log = LoggerFactory.getLogger(HttpTransportUtils.class);
+class HttpTransportUtils {
 
-    public final static String HEADER_DISTRIBUTION_ORIGINAL_ID = "X-Distribution-OriginalId";
-
-    public static InputStream fetchNextPackage(Executor executor, URI distributionURI, Map<String, String> headers) throws URISyntaxException, IOException {
-
-        // always clear the result headers map
-        headers.clear();
-
+    public static InputStream fetchNextPackage(Executor executor, URI distributionURI, HttpConfiguration httpConfiguration)
+            throws URISyntaxException, IOException {
         URI fetchUri = getFetchUri(distributionURI);
-        Request fetchReq = Request.Post(fetchUri).useExpectContinue();
+        Request fetchReq = Request.Post(fetchUri)
+                .connectTimeout(httpConfiguration.getConnectTimeout())
+                .socketTimeout(httpConfiguration.getSocketTimeout())
+                .addHeader(HTTP.CONN_DIRECTIVE, HTTP.CONN_CLOSE)
+                .useExpectContinue();
         HttpResponse httpResponse = executor.execute(fetchReq).returnResponse();
 
         if (httpResponse.getStatusLine().getStatusCode() != 200) {
@@ -54,15 +48,6 @@ public class HttpTransportUtils {
         }
 
         HttpEntity entity = httpResponse.getEntity();
-
-
-        Header header = httpResponse.getFirstHeader(HttpTransportUtils.HEADER_DISTRIBUTION_ORIGINAL_ID);
-        if (header != null && header.getValue() != null) {
-            String originalId = header.getValue();
-            headers.put(HEADER_DISTRIBUTION_ORIGINAL_ID, originalId);
-        } else {
-            log.warn("cannot retrieve original id header");
-        }
 
         return entity.getContent();
     }

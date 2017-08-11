@@ -20,7 +20,7 @@ package org.apache.sling.distribution.queue.impl;
 
 import java.util.Iterator;
 
-import org.apache.sling.distribution.serialization.DistributionPackage;
+import org.apache.sling.distribution.packaging.DistributionPackage;
 import org.apache.sling.distribution.queue.DistributionQueue;
 import org.apache.sling.distribution.queue.DistributionQueueEntry;
 import org.apache.sling.distribution.queue.DistributionQueueItem;
@@ -47,7 +47,7 @@ public class SingleQueueDistributionStrategyTest {
         DistributionQueue queue = mock(DistributionQueue.class);
         when(queueProvider.getQueue(DistributionQueueDispatchingStrategy.DEFAULT_QUEUE_NAME)).thenReturn(queue);
         DistributionQueueItemStatus state = mock(DistributionQueueItemStatus.class);
-        when(queue.add(any(DistributionQueueItem.class))).thenReturn(new DistributionQueueEntry(null, state));
+        when(queue.add(any(DistributionQueueItem.class))).thenReturn(new DistributionQueueEntry(null, null, state));
 
         Iterable<DistributionQueueItemStatus> returnedStates = singleQueueDistributionStrategy.add(distributionPackage, queueProvider);
         assertNotNull(returnedStates);
@@ -66,7 +66,7 @@ public class SingleQueueDistributionStrategyTest {
         DistributionQueueItem queueItem = mock(DistributionQueueItem.class);
         when(queueProvider.getQueue(DistributionQueueDispatchingStrategy.DEFAULT_QUEUE_NAME)).thenReturn(queue);
         DistributionQueueItemStatus state = mock(DistributionQueueItemStatus.class);
-        when(queue.add(queueItem)).thenReturn(new DistributionQueueEntry(queueItem, state));
+        when(queue.add(queueItem)).thenReturn(new DistributionQueueEntry(null, queueItem, state));
         Iterable<DistributionQueueItemStatus> returnedStates = singleQueueDistributionStrategy.add(distributionPackage, queueProvider);
         assertNotNull(returnedStates);
         Iterator<DistributionQueueItemStatus> iterator = returnedStates.iterator();
@@ -84,7 +84,7 @@ public class SingleQueueDistributionStrategyTest {
         when(queueProvider.getQueue(DistributionQueueDispatchingStrategy.DEFAULT_QUEUE_NAME)).thenReturn(queue);
         DistributionQueueItemStatus state = mock(DistributionQueueItemStatus.class);
 
-        when(queue.add(any(DistributionQueueItem.class))).thenReturn(new DistributionQueueEntry(null, state));
+        when(queue.add(any(DistributionQueueItem.class))).thenReturn(new DistributionQueueEntry(null, null, state));
 
         Iterable<DistributionQueueItemStatus> returnedStates = singleQueueDistributionStrategy.add(distributionPackage, queueProvider);
         assertNotNull(returnedStates);

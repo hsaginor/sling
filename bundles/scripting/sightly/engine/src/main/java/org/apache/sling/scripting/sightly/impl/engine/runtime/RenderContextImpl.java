@@ -19,33 +19,35 @@
 package org.apache.sling.scripting.sightly.impl.engine.runtime;
 
 import java.util.Map;
-
 import javax.script.Bindings;
+import javax.script.ScriptContext;
 
-import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.scripting.sightly.SightlyException;
 import org.apache.sling.scripting.sightly.extension.RuntimeExtension;
+import org.apache.sling.scripting.sightly.impl.engine.ExtensionRegistryService;
+import org.apache.sling.scripting.sightly.impl.utils.BindingsUtils;
+import org.apache.sling.scripting.sightly.render.AbstractRuntimeObjectModel;
 import org.apache.sling.scripting.sightly.render.RenderContext;
+import org.apache.sling.scripting.sightly.render.RuntimeObjectModel;
 
 /**
- * Rendering context for Sightly rendering units.
- * @see RenderUnit
+ * Rendering context for HTL rendering units.
  */
 public class RenderContextImpl implements RenderContext {
 
-    private final Bindings bindings;
-    private final Map<String, RuntimeExtension> mapping;
-    private final ResourceResolver scriptResourceResolver;
+    private static final AbstractRuntimeObjectModel OBJECT_MODEL = new SlingRuntimeObjectModel();
 
-    public RenderContextImpl(Bindings bindings, Map<String, RuntimeExtension> mapping, ResourceResolver scriptResourceResolver) {
-        this.bindings = bindings;
-        this.mapping = mapping;
-        this.scriptResourceResolver = scriptResourceResolver;
+    private final Bindings bindings;
+    private final ExtensionRegistryService extensionRegistryService;
+
+    public RenderContextImpl(ScriptContext scriptContext) {
+        bindings = scriptContext.getBindings(ScriptContext.ENGINE_SCOPE);
+        extensionRegistryService = BindingsUtils.getHelper(bindings).getService(ExtensionRegistryService.class);
     }
 
     @Override
-    public ResourceResolver getScriptResourceResolver() {
-        return scriptResourceResolver;
+    public RuntimeObjectModel getObjectModel() {
+        return OBJECT_MODEL;
     }
 
     /**
@@ -59,7 +61,8 @@ public class RenderContextImpl implements RenderContext {
 
     @Override
     public Object call(String functionName, Object... arguments) {
-        RuntimeExtension extension = mapping.get(functionName);
+        Map<String, RuntimeExtension> extensions = extensionRegistryService.extensions();
+        RuntimeExtension extension = extensions.get(functionName);
         if (extension == null) {
             throw new SightlyException("Runtime extension is not available: " + functionName);
         }

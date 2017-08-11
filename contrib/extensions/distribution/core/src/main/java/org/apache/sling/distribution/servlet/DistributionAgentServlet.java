@@ -37,6 +37,7 @@ import org.slf4j.LoggerFactory;
 /**
  * Servlet to ask {@link org.apache.sling.distribution.agent.DistributionAgent}s to distribute (via HTTP POST).
  */
+@SuppressWarnings("serial")
 @SlingServlet(resourceTypes = DistributionResourceTypes.AGENT_RESOURCE_TYPE, methods = "POST")
 public class DistributionAgentServlet extends SlingAllMethodsServlet {
 
@@ -65,10 +66,10 @@ public class DistributionAgentServlet extends SlingAllMethodsServlet {
                 log.debug("distribution response : {}", distributionResponse);
             } catch (Throwable e) {
                 log.error("an unexpected error has occurred", e);
-                ServletJsonUtils.writeJson(response, 503, "an unexpected error has occurred");
+                ServletJsonUtils.writeJson(response, 503, "an unexpected error has occurred", null);
             }
         } else {
-            ServletJsonUtils.writeJson(response, 404, "agent not found");
+            ServletJsonUtils.writeJson(response, 404, "agent not found", null);
         }
     }
 

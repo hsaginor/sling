@@ -23,8 +23,11 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.Reader;
 
-import org.apache.sling.api.resource.NonExistingResource;
+import org.apache.commons.io.FilenameUtils;
 import org.apache.sling.api.resource.Resource;
+import org.apache.sling.api.resource.ResourceResolver;
+import org.apache.sling.api.resource.ResourceUtil;
+import org.apache.sling.api.resource.path.PathBuilder;
 import org.thymeleaf.templateresource.ITemplateResource;
 
 public class SlingTemplateResource implements ITemplateResource {
@@ -44,12 +47,12 @@ public class SlingTemplateResource implements ITemplateResource {
 
     @Override
     public String getBaseName() {
-        return resource.getName();
+        return FilenameUtils.getBaseName(resource.getName());
     }
 
     @Override
     public boolean exists() {
-        return !(resource instanceof NonExistingResource);
+        return resource != null && !(ResourceUtil.isNonExistingResource(resource));
     }
 
     @Override
@@ -62,8 +65,13 @@ public class SlingTemplateResource implements ITemplateResource {
     }
 
     @Override
-    public ITemplateResource relative(final String relativeLocation) throws IOException {
-        throw new UnsupportedOperationException("not yet implemented"); // TODO
+    public ITemplateResource relative(final String relativeLocation) {
+        final PathBuilder pathBuilder = new PathBuilder(resource.getPath());
+        final String path = pathBuilder.append("..").append(relativeLocation).toString();
+        final ResourceResolver resourceResolver = resource.getResourceResolver();
+        final Resource relative = resourceResolver.getResource(path);
+        // final Resource relative = resource.getParent().getChild(relativeLocation);
+        return new SlingTemplateResource(relative);
     }
 
 }

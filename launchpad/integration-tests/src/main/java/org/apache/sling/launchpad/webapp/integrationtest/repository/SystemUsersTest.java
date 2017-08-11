@@ -17,6 +17,7 @@
 package org.apache.sling.launchpad.webapp.integrationtest.repository;
 
 import static org.junit.Assert.fail;
+
 import javax.jcr.Credentials;
 import javax.jcr.RepositoryException;
 import javax.jcr.Session;
@@ -53,5 +54,11 @@ public class SystemUsersTest {
         // This user is created by a RepositoryInitalizer in our
         // test-services bundle
         assertSystemUser("launchpad_testing");
+    }
+    
+    @Test
+    public void provisioningModelUser() throws RepositoryException {
+        // This one is created from our provisioning model
+        assertSystemUser("provisioningModelUser");
     }
 }

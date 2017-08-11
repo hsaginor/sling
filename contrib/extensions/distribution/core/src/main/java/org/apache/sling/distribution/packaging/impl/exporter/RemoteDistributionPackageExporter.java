@@ -29,18 +29,14 @@ import org.apache.sling.distribution.common.DistributionException;
 import org.apache.sling.distribution.log.impl.DefaultDistributionLog;
 import org.apache.sling.distribution.packaging.DistributionPackageProcessor;
 import org.apache.sling.distribution.packaging.impl.DistributionPackageUtils;
-import org.apache.sling.distribution.serialization.DistributionPackage;
+import org.apache.sling.distribution.packaging.DistributionPackage;
 import org.apache.sling.distribution.packaging.DistributionPackageExporter;
-import org.apache.sling.distribution.serialization.DistributionPackageBuilder;
+import org.apache.sling.distribution.packaging.DistributionPackageBuilder;
 import org.apache.sling.distribution.transport.DistributionTransportSecretProvider;
-import org.apache.sling.distribution.transport.impl.DistributionTransportContext;
-import org.apache.sling.distribution.transport.impl.DistributionTransport;
-import org.apache.sling.distribution.transport.impl.DistributionEndpoint;
-import org.apache.sling.distribution.transport.impl.DistributionPackageProxy;
-import org.apache.sling.distribution.transport.impl.SimpleHttpDistributionTransport;
+import org.apache.sling.distribution.transport.impl.*;
 
 /**
- * Default implementation of {@link org.apache.sling.distribution.packaging.DistributionPackageExporter}
+ * Remote implementation of {@link org.apache.sling.distribution.packaging.DistributionPackageExporter}
  */
 public class RemoteDistributionPackageExporter implements DistributionPackageExporter {
 
@@ -53,8 +49,7 @@ public class RemoteDistributionPackageExporter implements DistributionPackageExp
 
     public RemoteDistributionPackageExporter(DefaultDistributionLog log, DistributionPackageBuilder packageBuilder,
                                              DistributionTransportSecretProvider secretProvider,
-                                             String[] endpoints,
-                                             int maxPullItems) {
+                                             String[] endpoints, int maxPullItems, HttpConfiguration httpConfiguration) {
         this.maxPullItems = maxPullItems;
         if (packageBuilder == null) {
             throw new IllegalArgumentException("packageBuilder is required");
@@ -64,12 +59,12 @@ public class RemoteDistributionPackageExporter implements DistributionPackageExp
             throw new IllegalArgumentException("distributionTransportSecretProvider is required");
         }
 
-
         this.packageBuilder = packageBuilder;
 
         for (String endpoint : endpoints) {
             if (endpoint != null && endpoint.length() > 0) {
-                transportHandlers.add(new SimpleHttpDistributionTransport(log, new DistributionEndpoint(endpoint), packageBuilder, secretProvider));
+                transportHandlers.add(new SimpleHttpDistributionTransport(log, new DistributionEndpoint(endpoint),
+                        packageBuilder, secretProvider, httpConfiguration));
             }
         }
     }
@@ -79,16 +74,15 @@ public class RemoteDistributionPackageExporter implements DistributionPackageExp
         for (DistributionTransport distributionTransport : transportHandlers) {
             int noPackages = 0;
 
-            DistributionPackageProxy retrievedPackage;
+            RemoteDistributionPackage retrievedPackage;
             while (noPackages < maxNumberOfPackages && ((retrievedPackage = distributionTransport.retrievePackage(resourceResolver, distributionRequest, distributionContext)) != null)) {
-
 
                 DistributionPackage distributionPackage = retrievedPackage.getPackage();
 
                 try {
                     packageProcessor.process(distributionPackage);
 
-                    retrievedPackage.deletePackage();
+                    retrievedPackage.deleteRemotePackage();
 
                 } finally {
                     DistributionPackageUtils.closeSafely(distributionPackage);

@@ -18,6 +18,7 @@
 package org.apache.sling.hc.core.it;
 
 import static org.junit.Assert.fail;
+import static org.ops4j.pax.exam.CoreOptions.bundle;
 import static org.ops4j.pax.exam.CoreOptions.junitBundles;
 import static org.ops4j.pax.exam.CoreOptions.mavenBundle;
 import static org.ops4j.pax.exam.CoreOptions.options;
@@ -25,29 +26,34 @@ import static org.ops4j.pax.exam.CoreOptions.provision;
 import static org.ops4j.pax.exam.CoreOptions.systemProperty;
 import static org.ops4j.pax.exam.CoreOptions.when;
 
+import java.io.File;
 import java.util.Arrays;
 import java.util.List;
 
 import org.apache.sling.hc.api.execution.HealthCheckExecutionOptions;
 import org.apache.sling.hc.api.execution.HealthCheckExecutionResult;
 import org.apache.sling.hc.api.execution.HealthCheckExecutor;
+import org.apache.sling.hc.api.execution.HealthCheckSelector;
 import org.ops4j.pax.exam.CoreOptions;
 import org.ops4j.pax.exam.Option;
 
 /** Test utilities */
 public class U {
 
+    // the name of the system property providing the bundle file to be installed and tested
+    private static final String BUNDLE_JAR_SYS_PROP = "project.bundle.file";
+
     /** Wait until the specified number of health checks are seen by supplied executor */
     static void expectHealthChecks(int howMany, HealthCheckExecutor executor, String ... tags) {
         expectHealthChecks(howMany, executor, new HealthCheckExecutionOptions(), tags);
     }
-    
+
     /** Wait until the specified number of health checks are seen by supplied executor */
     static void expectHealthChecks(int howMany, HealthCheckExecutor executor, HealthCheckExecutionOptions options, String ... tags) {
         final long timeout = System.currentTimeMillis() + 10000L;
         int count = 0;
         while(System.currentTimeMillis() < timeout) {
-            final List<HealthCheckExecutionResult> results = executor.execute(options, tags);
+            final List<HealthCheckExecutionResult> results = executor.execute(HealthCheckSelector.tags(tags), options);
             count = results.size();
             if(count== howMany) {
                 return;
@@ -60,12 +66,18 @@ public class U {
         }
         fail("Did not get " + howMany + " health checks with tags " + Arrays.asList(tags) + " after " + timeout + " msec (last count=" + count + ")");
     }
-    
+
     static Option[] config() {
-        final String coreVersion = System.getProperty("sling.hc.core.version");
         final String localRepo = System.getProperty("maven.repo.local", "");
         final boolean felixShell = "true".equals(System.getProperty("felix.shell", "false"));
-        
+
+        final String bundleFileName = System.getProperty(BUNDLE_JAR_SYS_PROP);
+        final File bundleFile = new File(bundleFileName);
+        if (!bundleFile.canRead()) {
+            throw new IllegalArgumentException( "Cannot read from bundle file " + bundleFileName + " specified in the "
+                + BUNDLE_JAR_SYS_PROP + " system property" );
+        }
+
         // As we're using the forked pax exam container, we need to add a VM
         // option to activate the jacoco test coverage agent.
         final String coverageCommand = System.getProperty("coverage.command");
@@ -73,7 +85,7 @@ public class U {
         return options(
             when(localRepo.length() > 0).useOptions(
                     systemProperty("org.ops4j.pax.url.mvn.localRepository").value(localRepo)
-            ),                    
+            ),
             junitBundles(),
             when(coverageCommand != null && coverageCommand.trim().length() > 0).useOptions(
                     CoreOptions.vmOption(coverageCommand)
@@ -87,14 +99,15 @@ public class U {
                     )
             ),
             provision(
+                    bundle(bundleFile.toURI().toString()),
+                    mavenBundle().groupId("javax.servlet").artifactId("javax.servlet-api").versionAsInProject(),
                     mavenBundle("org.apache.felix", "org.apache.felix.scr", "1.6.2"),
                     mavenBundle("org.apache.felix", "org.apache.felix.configadmin", "1.8.8"),
-                    mavenBundle("org.apache.felix", "org.apache.felix.http.servlet-api", "1.1.0"),
-                    mavenBundle("org.apache.sling", "org.apache.sling.hc.core", coreVersion),
                     mavenBundle("org.apache.sling", "org.apache.sling.commons.osgi", "2.2.0"),
-                    mavenBundle("org.apache.sling", "org.apache.sling.commons.json", "2.0.10"),
+                    mavenBundle("org.apache.sling", "org.apache.sling.commons.johnzon").versionAsInProject(),
                     mavenBundle("org.apache.sling", "org.apache.sling.jcr.jcr-wrapper", "2.0.0"),
                     mavenBundle("org.apache.sling", "org.apache.sling.api", "2.4.2"),
+                    mavenBundle("org.apache.sling", "org.apache.sling.hc.api").versionAsInProject(),
                     mavenBundle("org.apache.sling", "org.apache.sling.jcr.api", "2.1.0"),
                     mavenBundle("org.apache.sling", "org.apache.sling.engine", "2.2.8"),
                     mavenBundle("org.apache.sling", "org.apache.sling.auth.core", "1.1.2"),
@@ -105,10 +118,9 @@ public class U {
                     mavenBundle("org.apache.sling", "org.apache.sling.commons.threads", "3.1.0"),
                     mavenBundle("org.apache.sling", "org.apache.sling.commons.scheduler", "2.4.2"),
                     mavenBundle("commons-collections", "commons-collections", "3.2.1"),
-                    mavenBundle("commons-io", "commons-io", "1.4"),
+                    mavenBundle().groupId("commons-io").artifactId("commons-io").versionAsInProject(),
                     mavenBundle("commons-fileupload", "commons-fileupload", "1.2.2"),
-                    mavenBundle("commons-lang", "commons-lang", "2.5"),
-                    mavenBundle("org.mortbay.jetty", "servlet-api-2.5", "6.1.14")
+                    mavenBundle().groupId("org.apache.commons").artifactId("commons-lang3").versionAsInProject()
             )
         );
     }

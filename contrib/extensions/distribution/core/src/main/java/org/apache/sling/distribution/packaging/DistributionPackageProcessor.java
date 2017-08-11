@@ -19,7 +19,9 @@
 
 package org.apache.sling.distribution.packaging;
 
-import org.apache.sling.distribution.serialization.DistributionPackage;
+import org.apache.sling.distribution.DistributionResponse;
+
+import java.util.List;
 
 /**
  * A callback function used to process packages
@@ -31,4 +33,10 @@ public interface DistributionPackageProcessor {
      * @param distributionPackage the distribution package
      */
     void process(DistributionPackage distributionPackage);
+
+    List<DistributionResponse> getAllResponses();
+
+    int getPackagesCount();
+
+    long getPackagesSize();
 }

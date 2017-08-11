@@ -25,6 +25,7 @@ import java.io.PrintWriter;
 import java.io.UnsupportedEncodingException;
 
 import javax.servlet.ServletOutputStream;
+import javax.servlet.WriteListener;
 
 import org.apache.commons.lang3.CharEncoding;
 import org.apache.commons.lang3.StringUtils;
@@ -55,6 +56,14 @@ class ResponseBodySupport {
                 public void write(int b) throws IOException {
                     outputStream.write(b);
                 }
+                @Override
+                public boolean isReady() {
+                    return true;
+                }
+                @Override
+                public void setWriteListener(WriteListener writeListener) {
+                    throw new UnsupportedOperationException();
+                }
             };
         }
         return servletOutputStream;
@@ -72,6 +81,9 @@ class ResponseBodySupport {
     }
 
     public byte[] getOutput() {
+        if (printWriter != null) {
+            printWriter.flush();
+        }
         if (servletOutputStream != null) {
             try {
                 servletOutputStream.flush();
@@ -83,9 +95,6 @@ class ResponseBodySupport {
     }
 
     public String getOutputAsString(String charset) {
-        if (printWriter != null) {
-            printWriter.flush();
-        }
         try {
             return new String(getOutput(), defaultCharset(charset));
         } catch (UnsupportedEncodingException ex) {

@@ -78,7 +78,7 @@ public class PathSet implements Iterable<Path> {
 
     /**
      * Create a path set from a collection of strings
-     * @param paths The collection of strings
+     * @param strings The array of strings
      * @return The path set
      */
     public static PathSet fromStrings(final String...strings) {
@@ -125,9 +125,9 @@ public class PathSet implements Iterable<Path> {
     /**
      * Check whether the provided path is in the sub tree of any
      * of the paths in this set.
-     * @param otherPath
+     * @param otherPath The path to match
      * @return The path which matches the provided path, {@code null} otherwise.
-     * @see {@link Path#matches(String)}
+     * @see Path#matches(String)
      */
     public Path matches(final String otherPath) {
          for(final Path p : this.paths) {
@@ -142,7 +142,7 @@ public class PathSet implements Iterable<Path> {
      * Generate a path set of paths from this set which
      * are in the sub tree of the provided path
      * @param path The base path
-     * @return Path set
+     * @return Path set, might be empty
      */
     public PathSet getSubset(final String path) {
         return getSubset(new Path(path));
@@ -152,7 +152,8 @@ public class PathSet implements Iterable<Path> {
      * Generate a path set of paths from this set which
      * are in the sub tree of the provided path
      * @param path The base path
-     * @return Path set
+     * @return Path set, might be empty
+     * @since 1.2.0 (Sling API Bundle 2.15.0)
      */
     public PathSet getSubset(final Path path) {
         final Set<Path> result = new HashSet<Path>();
@@ -165,7 +166,24 @@ public class PathSet implements Iterable<Path> {
     }
 
     /**
+     * Generate a path set of paths from this set which
+     * are in at least one of the sub tree of the provided path set.
+     * @param set The base path set
+     * @return Path set
+     */
+    public PathSet getSubset(final PathSet set) {
+        final Set<Path> result = new HashSet<Path>();
+        for(final Path p : this.paths) {
+            if ( set.matches(p.getPath()) != null ) {
+                result.add(p);
+            }
+        }
+        return new PathSet(result);
+    }
+
+    /**
      * Create a unmodifiable set of strings
+     * @return A set of strings
      */
     public Set<String> toStringSet() {
         final Set<String> set = new HashSet<String>();
@@ -177,6 +195,7 @@ public class PathSet implements Iterable<Path> {
 
     /**
      * Return an unmodifiable iterator for the paths.
+     * @return An iterator for the paths
      */
     @Override
     public Iterator<Path> iterator() {
@@ -197,5 +216,10 @@ public class PathSet implements Iterable<Path> {
             return false;
         }
         return this.paths.equals(((PathSet)obj).paths);
+    }
+
+    @Override
+    public String toString() {
+        return "PathSet [paths=" + paths + "]";
     }
 }

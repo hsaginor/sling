@@ -29,7 +29,7 @@ import javax.jcr.Session;
 import javax.jcr.version.VersionHistory;
 import javax.jcr.version.VersionManager;
 
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.jackrabbit.JcrConstants;
 import org.apache.jackrabbit.api.JackrabbitSession;
 import org.apache.sling.api.resource.Resource;
@@ -65,7 +65,7 @@ public class JcrItemResourceFactory {
      */
     public JcrItemResource<?> createResource(final ResourceResolver resourceResolver, final String resourcePath,
             final Resource parent, final Map<String, String> parameters) throws RepositoryException {
-        final String jcrPath = helper.pathMapper.mapResourcePathToJCRPath(resourcePath);
+        final String jcrPath = resourcePath;
         if (jcrPath == null) {
             log.debug("createResource: {} maps to an empty JCR path", resourcePath);
             return null;
@@ -119,7 +119,7 @@ public class JcrItemResourceFactory {
 
     private Item getHistoricItem(Item item, String versionSpecifier) throws RepositoryException {
         Item currentItem = item;
-        LinkedList<String> relPath = new LinkedList<String>();
+        LinkedList<String> relPath = new LinkedList<>();
         Node version = null;
         while (!"/".equals(currentItem.getPath())) {
             if (isVersionable(currentItem)) {

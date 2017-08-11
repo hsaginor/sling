@@ -21,6 +21,7 @@ package org.apache.sling.distribution.servlet;
 import javax.servlet.ServletException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.commons.io.IOUtils;
@@ -31,12 +32,13 @@ import org.apache.sling.api.SlingHttpServletResponse;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.api.servlets.SlingAllMethodsServlet;
 import org.apache.sling.distribution.DistributionRequest;
+import org.apache.sling.distribution.DistributionResponse;
 import org.apache.sling.distribution.common.DistributionException;
 import org.apache.sling.distribution.packaging.DistributionPackageProcessor;
-import org.apache.sling.distribution.serialization.DistributionPackage;
+import org.apache.sling.distribution.packaging.impl.DistributionPackageUtils;
+import org.apache.sling.distribution.packaging.DistributionPackage;
 import org.apache.sling.distribution.packaging.DistributionPackageExporter;
 import org.apache.sling.distribution.resources.DistributionResourceTypes;
-import org.apache.sling.distribution.transport.impl.HttpTransportUtils;
 import org.apache.sling.distribution.util.RequestUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -44,11 +46,11 @@ import org.slf4j.LoggerFactory;
 /**
  * Servlet to handle fetching of distribution content.
  */
+@SuppressWarnings("serial")
 @SlingServlet(resourceTypes = DistributionResourceTypes.EXPORTER_RESOURCE_TYPE, methods = "POST")
 public class DistributionPackageExporterServlet extends SlingAllMethodsServlet {
 
     private final Logger log = LoggerFactory.getLogger(getClass());
-
 
     @Override
     protected void doPost(SlingHttpServletRequest request, SlingHttpServletResponse response)
@@ -101,9 +103,7 @@ public class DistributionPackageExporterServlet extends SlingAllMethodsServlet {
                     InputStream inputStream = null;
                     int bytesCopied = -1;
                     try {
-                        response.addHeader(HttpTransportUtils.HEADER_DISTRIBUTION_ORIGINAL_ID, distributionPackage.getId());
-
-                        inputStream = distributionPackage.createInputStream();
+                        inputStream = DistributionPackageUtils.createStreamWithHeader(distributionPackage);
 
                         bytesCopied = IOUtils.copy(inputStream, response.getOutputStream());
                     } catch (IOException e) {
@@ -122,6 +122,21 @@ public class DistributionPackageExporterServlet extends SlingAllMethodsServlet {
                     // everything ok
                     response.setStatus(200);
                     log.debug("exported package {} was sent (and deleted={}), bytes written {}", new Object[]{packageId, delete, bytesCopied});
+                }
+
+                @Override
+                public List<DistributionResponse> getAllResponses() {
+                    return null;
+                }
+
+                @Override
+                public int getPackagesCount() {
+                    return 0;
+                }
+
+                @Override
+                public long getPackagesSize() {
+                    return 0;
                 }
             });
 

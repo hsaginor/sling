@@ -28,7 +28,8 @@ import java.util.UUID;
 import java.util.concurrent.locks.ReentrantLock;
 
 import org.apache.log4j.Level;
-import org.apache.log4j.LogManager;
+import org.apache.log4j.spi.RootLogger;
+import org.apache.sling.commons.testing.junit.categories.Slow;
 import org.apache.sling.discovery.commons.providers.BaseTopologyView;
 import org.apache.sling.discovery.commons.providers.DefaultClusterView;
 import org.apache.sling.discovery.commons.providers.DummyTopologyView;
@@ -37,8 +38,8 @@ import org.apache.sling.discovery.commons.providers.base.ViewStateManagerImpl;
 import org.apache.sling.discovery.commons.providers.spi.ClusterSyncService;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
+import org.junit.experimental.categories.Category;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -47,9 +48,9 @@ public class TestMinEventDelayHandler {
     private final Logger logger = LoggerFactory.getLogger(this.getClass());
 
     private ViewStateManagerImpl mgr;
-    
+
     private Random defaultRandom;
-    
+
     private DummyDiscoveryService sds;
 
     private Level logLevel;
@@ -59,11 +60,12 @@ public class TestMinEventDelayHandler {
     @Before
     public void setup() throws Exception {
         mgr = new ViewStateManagerImpl(new ReentrantLock(), new ClusterSyncService() {
-            
+
+            @Override
             public void sync(BaseTopologyView view, Runnable callback) {
                 callback.run();
             }
-            
+
             @Override
             public void cancelSync() {
                 // nothing to cancel, we're auto-run
@@ -75,16 +77,16 @@ public class TestMinEventDelayHandler {
         sds = new DummyDiscoveryService();
         mgr.installMinEventDelayHandler(sds, scheduler, 1);
 
-        final org.apache.log4j.Logger discoveryLogger = LogManager.getRootLogger().getLogger("org.apache.sling.discovery");
+        final org.apache.log4j.Logger discoveryLogger = RootLogger.getLogger("org.apache.sling.discovery");
         logLevel = discoveryLogger.getLevel();
-        discoveryLogger.setLevel(Level.DEBUG);
+        discoveryLogger.setLevel(Level.INFO); // changed from Level.DEBUG
     }
     
     @After
     public void teardown() throws Exception {
         mgr = null;
         defaultRandom= null;
-        final org.apache.log4j.Logger discoveryLogger = LogManager.getRootLogger().getLogger("org.apache.sling.discovery");
+        final org.apache.log4j.Logger discoveryLogger = RootLogger.getLogger("org.apache.sling.discovery");
         discoveryLogger.setLevel(logLevel);
     }
     
@@ -101,9 +103,9 @@ public class TestMinEventDelayHandler {
         mgr.handleActivated();
         TestHelper.assertNoEvents(listener);
         final DummyTopologyView view1 = new DummyTopologyView().addInstance();
-        final DummyTopologyView view2 = DummyTopologyView.clone(view1).addInstance(UUID.randomUUID().toString(), 
+        final DummyTopologyView view2 = DummyTopologyView.clone(view1).addInstance(UUID.randomUUID().toString(),
                 (DefaultClusterView) view1.getLocalInstance().getClusterView(), false, false);
-        final DummyTopologyView view3 = DummyTopologyView.clone(view1).addInstance(UUID.randomUUID().toString(), 
+        final DummyTopologyView view3 = DummyTopologyView.clone(view1).addInstance(UUID.randomUUID().toString(),
                 (DefaultClusterView) view1.getLocalInstance().getClusterView(), false, false);
         logger.info("testReactivate: calling handleNewView...");
         mgr.handleNewView(view1);
@@ -123,7 +125,7 @@ public class TestMinEventDelayHandler {
         assertEquals(0, mgr.waitForAsyncEvents(2000));
         logger.info("testReactivate: asserting CHANGED event");
         TestHelper.assertEvents(mgr, listener, EventHelper.newChangedEvent(view1, view2));
-        
+
         // now do the above again, but this time do a handleDeactivated before receiving another changed event
         logger.info("testReactivate: calling handleChanging...");
         mgr.handleChanging();
@@ -133,21 +135,21 @@ public class TestMinEventDelayHandler {
         TestHelper.assertNoEvents(listener);
         // make sure the MinEventDelayHandler finds a topology when coming back from the delaying, so:
         sds.setTopoology(view3);
-        
+
         logger.info("testReactivate: doing handleDeactivated");
         final AsyncEventSender asyncEventSender = mgr.getAsyncEventSender();
         Field field = mgr.getClass().getDeclaredField("minEventDelayHandler");
         field.setAccessible(true);
         MinEventDelayHandler minEventDelayHandler = (MinEventDelayHandler) field.get(mgr);
         assertNotNull(minEventDelayHandler);
-        
+
         // marking view3 as not current
         view3.setNotCurrent();
         sds.setTopoology(view3);
-        
+
         mgr.handleDeactivated();
         TestHelper.assertNoEvents(listener);
-        
+
         logger.info("testReactivate: now waiting 5 sec to make sure the MinEventDelayHandler would be finished");
         TestHelper.assertNoEvents(listener);
         Thread.sleep(5000);
@@ -165,6 +167,7 @@ public class TestMinEventDelayHandler {
         assertEquals(0, listener.countEvents());
     }
 
+    @Category(Slow.class) //TODO test takes env 50sec
     @Test
     public void testNormalDelaying() throws Exception {
         final DummyListener listener = new DummyListener();
@@ -190,6 +193,7 @@ public class TestMinEventDelayHandler {
         }
     }
 
+    @Category(Slow.class) //TODO test takes env 45sec
     @Test
     public void testFailedDelaying() throws Exception {
         scheduler.failMode();
@@ -210,7 +214,7 @@ public class TestMinEventDelayHandler {
             Thread.sleep(1000);
         }
     }
-    
+
     @Test
     public void testLongMinDelay() throws Exception {
         mgr.installMinEventDelayHandler(sds, scheduler, 5);

@@ -16,21 +16,23 @@
  */
 package org.apache.sling.commons.scheduler.impl;
 
+import java.lang.reflect.Field;
+import java.util.Dictionary;
+import java.util.Hashtable;
+
 import org.apache.sling.commons.threads.impl.DefaultThreadPoolManager;
 import org.osgi.framework.BundleContext;
 import org.osgi.framework.Constants;
 
-import java.lang.reflect.Field;
-import java.util.Dictionary;
-import java.util.HashMap;
-import java.util.Hashtable;
-import java.util.Map;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  * This is just a class with helper static method,
  * since we need an activated QuartzScheduler in many tests.
  */
 class ActivatedQuartzSchedulerFactory {
+
     public static QuartzScheduler create(BundleContext context, String poolName) throws Exception {
         QuartzScheduler quartzScheduler = null;
         if (context != null) {
@@ -43,10 +45,16 @@ class ActivatedQuartzSchedulerFactory {
             f.setAccessible(true);
             f.set(quartzScheduler, new DefaultThreadPoolManager(context, props));
 
-            Map<String, Object> scheduleActivationProps = new HashMap<String, Object>();
-            scheduleActivationProps.put("poolName", poolName == null ? "testName" : poolName);
+            final QuartzSchedulerConfiguration configuration = mock(QuartzSchedulerConfiguration.class);
+            if (poolName == null) {
+                when(configuration.poolName()).thenReturn("testName");
+            } else {
+                final String[] allowedPoolNames = new String[] {"testName", "allowed"};
+                when(configuration.poolName()).thenReturn(poolName);
+                when(configuration.allowedPoolNames()).thenReturn(allowedPoolNames);
+            }
 
-            quartzScheduler.activate(context, scheduleActivationProps);
+            quartzScheduler.activate(context, configuration);
             context.registerService("scheduler", quartzScheduler, props);
         }
         return quartzScheduler;
